@@ -407,11 +407,31 @@ fn App() -> impl IntoView {
                     set_downloading.set(true);
                     let mut dls = HashSet::new();
                     let mut writes = Vec::new();
+                    let mut matryoshka_count = 0;
                     for (_, card) in state.get().cards {
                         let &(ref root, num) = &card.printing;
-                        let url = card_url(root, num);
-                        dls.insert(url.clone());
-                        writes.push(url);
+                        match (&root[..], num) {
+                            ("ashes", 66 | 120) => {
+                                let url = format!("{DB_URL}/{root}/{num:>03}.1.webp");
+                                dls.insert(url.clone());
+                                writes.push(url);
+                                let url = format!("{DB_URL}/{root}/{num:>03}.2.webp");
+                                dls.insert(url.clone());
+                                writes.push(url);
+                            }
+                            ("borealis", 94) => {
+                                matryoshka_count %= 6;
+                                matryoshka_count += 1;
+                                let url = format!("{DB_URL}/{root}/{num:>03}.{matryoshka_count}.webp");
+                                dls.insert(url.clone());
+                                writes.push(url);
+                            }
+                            (_, _) => {
+                                let url = format!("{DB_URL}/{root}/{num:>03}.webp");
+                                dls.insert(url.clone());
+                                writes.push(url);
+                            }
+                        }
                     }
                     set_dl_len.set(dls.len() * 3);
                     let mut dl_all = dls
