@@ -9,25 +9,21 @@ use nucleo_matcher::{
     Config, Matcher,
 };
 use printpdf::{
-    image::RawImage, Color, Mm, Op, PaintMode, PdfDocument, PdfPage, PdfSaveOptions, Point,
-    Polygon, Rgb, WindingOrder, XObjectTransform,
+    image::RawImage, Mm, Op, PaintMode, PdfDocument, PdfPage, PdfSaveOptions, Point, Polygon,
+    WindingOrder, XObjectTransform,
 };
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use wasm_bindgen::{JsCast, JsValue};
 use web_sys::{js_sys::Uint8Array, Blob, Url};
 
-const DB_URL: &'static str =
+const DB_URL: &str =
     "https://nr-card-printings-7cc83f6c-d908-4c99-8c9f-5018927c1533.s3.eu-west-2.amazonaws.com";
 
-const NAMES_INDEX: &'static str = include_str!("../names.index.json");
-const NRDBID_INDEX: &'static str = include_str!("../nrdbid.index.json");
-
-fn card_url(cycle: &str, index: u32) -> String {
-    format!("{DB_URL}/{cycle}/{index:>03}.webp")
-}
+const NAMES_INDEX: &str = include_str!("../names.index.json");
+const NRDBID_INDEX: &str = include_str!("../nrdbid.index.json");
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Default)]
 struct AppState {
@@ -235,8 +231,8 @@ fn App() -> impl IntoView {
     });
 
     let names_index: HashMap<String, Vec<(String, u32)>> =
-        serde_json::from_str(&NAMES_INDEX).expect("deser");
-    let nrdbid_index: HashMap<String, String> = serde_json::from_str(&NRDBID_INDEX).expect("deser");
+        serde_json::from_str(NAMES_INDEX).expect("deser");
+    let nrdbid_index: HashMap<String, String> = serde_json::from_str(NRDBID_INDEX).expect("deser");
     let nrdbid_index: &'static HashMap<String, String> = Box::leak(Box::new(nrdbid_index));
     let names_index: &'static HashMap<String, Vec<(String, u32)>> =
         Box::leak(Box::new(names_index));
@@ -250,7 +246,7 @@ fn App() -> impl IntoView {
     name_list.sort();
     let name_list: &'static [String] = Box::leak(name_list.into_boxed_slice());
 
-    let (state, set_state, delete_state) =
+    let (state, set_state, _delete_state) =
         use_local_storage::<AppState, JsonSerdeCodec>("proxy_nro_app_state_2024_11_22");
     let (input, set_input) = create_signal("".to_string());
     let (nrdb_input, set_nrdb_input) = create_signal("".to_string());
@@ -267,7 +263,7 @@ fn App() -> impl IntoView {
     printing_alias.insert("liberation", "Lib");
     let printing_alias: &'static HashMap<_, _> = Box::leak(Box::new(printing_alias));
 
-    let (layout_config, set_layout_config, delete_layout_config) =
+    let (layout_config, set_layout_config, _delete_layout_config) =
         use_local_storage_with_options::<LayoutConfig, JsonSerdeCodec>(
             "proxy_nro_layout_config_2024_11_22",
             UseStorageOptions::default().initial_value(LayoutConfig::default()),
@@ -327,7 +323,7 @@ fn App() -> impl IntoView {
                     <input
                         type="submit"
                         value="Add Card"
-                        prop:name=move || matcher.get().matches.get(0).cloned().unwrap_or_default()
+                        prop:name=move || matcher.get().matches.first().cloned().unwrap_or_default()
                     />
                     </div>
                     <div id="clist">
@@ -367,11 +363,11 @@ fn App() -> impl IntoView {
                                 for (card, count) in cards {
                                     let count = count.as_number().unwrap();
                                     let count = count.as_u64().unwrap();
-                                    let card = &nrdbid_index[&*card];
+                                    let card = &nrdbid_index[&**card];
                                     for _ in 0..count {
                                         state.cards.insert(state.next_card, CardRecord {
                                             name: card.clone(),
-                                            printing: names_index[&*card][0].clone(),
+                                            printing: names_index[&**card][0].clone(),
                                         });
                                         state.next_card += 1;
                                     }
@@ -477,12 +473,14 @@ fn App() -> impl IntoView {
                                 let iw = (*imw as f32) / 11.811;
                                 let ih = (*imh as f32) / 11.811;
                                 let (px, py, s) = layout_config.card_area(card, iw, ih);
-                                let mut transform = XObjectTransform::default();
-                                transform.translate_x = Some(Mm(px).into());
-                                transform.translate_y = Some(Mm(py).into());
-                                transform.scale_x = Some(s);
-                                transform.scale_y = Some(s);
-                                transform.dpi = Some(300.0);
+                                let transform = XObjectTransform {
+                                    translate_x: Some(Mm(px).into()),
+                                    translate_y: Some(Mm(py).into()),
+                                    scale_x: Some(s),
+                                    scale_y: Some(s),
+                                    dpi: Some(300.0),
+                                    ..Default::default()
+                                };
                                 page_content.push(Op::UseXObject {
                                     id: xid.clone(),
                                     transform
