@@ -1,0 +1,30 @@
+[package]
+name = "genpdf"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+printpdf = { git = "https://github.com/fschutt/printpdf.git", rev = "58c878ad2f3c97b74be5884f06185d3db3ab1e16", features = [
+    "webp",
+] }
+reqwest = { version = "0.12.9", features = ["json"] }
+serde_json = { version = "1.0.133" }
+serde = { version = "1", features = ["derive"] }
+leptos = { version = "0.6.15", features = ["csr"] }
+tokio = { version = "1", features = ["full"], optional = true }
+leptos-use = { version = "0.13.10" }
+strsim = "0.11.1"
+codee = { version = "0.2.0", features = ["json_serde"] }
+nucleo-matcher = "0.3.1"
+futures = "0.3.31"
+regex = "1.11.1"
+
+[[bin]]
+name = "genpdf"
+path = "src/main.rs"
+
+
+[[bin]]
+name = "mkindex"
+path = "src/make-card-index.rs"
+required-features = ["tokio"]
