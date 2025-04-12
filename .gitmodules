@@ -1,0 +1,3 @@
+[submodule "netrunner-cards-json"]
+	path = netrunner-cards-json
+	url = git@github.com:NetrunnerDB/netrunner-cards-json.git
