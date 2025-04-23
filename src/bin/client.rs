@@ -5,7 +5,13 @@ use std::{
 
 use codee::{Decoder, Encoder};
 use futures::{StreamExt, stream::FuturesUnordered};
-use leptos::{prelude::*, task::spawn_local};
+use leptos::{
+    html::{Button, Dialog},
+    leptos_dom::logging::{console_error, console_log, console_warn},
+    prelude::*,
+    task::spawn_local,
+};
+use leptos_use::on_click_outside;
 use leptos_use::storage::use_session_storage;
 use nucleo_matcher::{
     Matcher,
@@ -17,20 +23,13 @@ use printpdf::{
 };
 use proxy_elev::{
     AlternateFaceMetadata, BleedMode, CardFacePrintingId, CardId, CutIndicator, FilledCardSlot,
-    Library, MultiLibrary, PrintConfig, PrintFile, PrintSize,
+    InsertId, Library, MULTI_LIBRARY, PrintConfig, PrintFile, PrintSize,
 };
 use reactive_stores::{Store, Subfield};
+use regex::Regex;
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::{JsCast, JsValue};
 use web_sys::{Blob, Url, js_sys::Uint8Array};
-
-static MULTI_LIBRARY: std::sync::LazyLock<MultiLibrary> =
-    std::sync::LazyLock::new(proxy_elev::manifest);
-
-fn use_libraries() -> (Signal<Libraries>, WriteSignal<Libraries>) {
-    let (get, set, _delete) = use_session_storage::<Libraries, RonSerdeCodec>("libraries-v1");
-    (get, set)
-}
 
 fn use_print_file() -> (Signal<PrintFile>, WriteSignal<PrintFile>) {
     let (get, set, _delete) = use_session_storage::<PrintFile, RonSerdeCodec>("print-set-v0");
@@ -42,20 +41,40 @@ fn use_print_config() -> (Signal<PrintConfig>, WriteSignal<PrintConfig>) {
     (get, set)
 }
 
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+pub enum OpenDialog {
+    Edit(usize),
+    Print,
+    JnetImport,
+    NrdbImport,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub enum ImportStatus {
+    Importing,
+    CouldNotFind,
+    Failed,
+    InvalidFormat,
+}
+
 #[derive(Debug, Clone, Store)]
 pub struct AppState {
-    index: Option<usize>,
-    tab: Tab,
+    dialog: Option<OpenDialog>,
     printing: bool,
+    import_status: Option<ImportStatus>,
+    selected_library: String,
 }
-fn use_print_index() -> Subfield<Store<AppState>, AppState, Option<usize>> {
-    expect_context::<Store<AppState>>().index()
+fn use_open_dialog() -> Subfield<Store<AppState>, AppState, Option<OpenDialog>> {
+    expect_context::<Store<AppState>>().dialog()
 }
-fn use_tab() -> Subfield<Store<AppState>, AppState, Tab> {
-    expect_context::<Store<AppState>>().tab()
+fn use_selected_library() -> Subfield<Store<AppState>, AppState, String> {
+    expect_context::<Store<AppState>>().selected_library()
 }
 fn use_printing() -> Subfield<Store<AppState>, AppState, bool> {
     expect_context::<Store<AppState>>().printing()
+}
+fn use_import_status() -> Subfield<Store<AppState>, AppState, Option<ImportStatus>> {
+    expect_context::<Store<AppState>>().import_status()
 }
 
 pub struct RonSerdeCodec;
@@ -101,53 +120,27 @@ impl Default for Libraries {
                 inserts: HashMap::new(),
             },
         };
-        let lib = &MULTI_LIBRARY.libraries["NSG English"];
+        let lib = &MULTI_LIBRARY.libraries["english"];
         base_state.library.merge(lib);
+        base_state.loaded_libraries.insert("english".to_string());
         base_state
-            .loaded_libraries
-            .insert("NSG English".to_string());
-        base_state
-    }
-}
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
-enum Tab {
-    #[default]
-    AddCard,
-    AddInsert,
-    EditCard,
-    Print,
-    LoadPremadeList,
-    ConfigureLibrary,
-}
-const TABS: &[Tab] = &[Tab::AddCard, Tab::Print];
-impl Tab {
-    pub fn name(self) -> &'static str {
-        match self {
-            Tab::AddCard => "Cards",
-            Tab::AddInsert => "Inserts",
-            Tab::EditCard => "Edit",
-            Tab::Print => "Print",
-            Tab::LoadPremadeList => "Lists",
-            Tab::ConfigureLibrary => "Libraries",
-        }
     }
 }
 
 #[component]
 fn Root() -> impl IntoView {
     provide_context(Store::new(AppState {
-        index: None,
-        tab: Tab::AddCard,
+        dialog: None,
         printing: false,
+        import_status: None,
+        selected_library: "english".to_string(),
     }));
     view! {
         <div class="bg-zinc-900 grid auto-rows-[min-content_1fr_min-content] gap-2 h-screen">
-            <div class="bg-zinc-700 p-2 shadow-lg">
-                "NRO Proxy Generator"
-            </div>
+            <InputLineNew />
             <div class="p-4 overflow-y-scroll">
                 <DecklistView />
+                <OpenDialog />
             </div>
             <div>
                 <ControlConfig />
@@ -157,11 +150,200 @@ fn Root() -> impl IntoView {
 }
 
 #[component]
+fn InputLineNew() -> impl IntoView {
+    let (_, set_print_file) = use_print_file();
+    let selected_library = use_selected_library();
+    let mut matcher_config = nucleo_matcher::Config::DEFAULT;
+    matcher_config.ignore_case = true;
+    matcher_config.normalize = true;
+    matcher_config.prefer_prefix = true;
+    let matcher = Arc::new(Mutex::new(Matcher::new(matcher_config)));
+
+    let (input, set_input) = signal(String::new());
+
+    let haystack = Memo::new(move |_| {
+        let mut haystack = Haystack {
+            haystack: vec![],
+            mappings: HashMap::new(),
+        };
+        let library = &MULTI_LIBRARY.libraries[&selected_library.get()];
+        for (card, meta) in &library.cards {
+            haystack.haystack.push(meta.title.title.clone());
+            haystack.haystack.push(meta.title.stripped_title.clone());
+            haystack
+                .mappings
+                .insert(meta.title.title.clone(), HaystackEntry::Card(card.clone()));
+            haystack.mappings.insert(
+                meta.title.stripped_title.clone(),
+                HaystackEntry::Card(card.clone()),
+            );
+        }
+        for (insert, meta) in &library.inserts {
+            haystack.haystack.push(meta.title.title.clone());
+            haystack.haystack.push(meta.title.stripped_title.clone());
+
+            haystack.mappings.insert(
+                meta.title.title.clone(),
+                HaystackEntry::Insert(insert.clone()),
+            );
+            haystack.mappings.insert(
+                meta.title.stripped_title.clone(),
+                HaystackEntry::Insert(insert.clone()),
+            );
+            for group in &meta.insert_groups {
+                haystack.haystack.push(group.clone());
+                haystack
+                    .mappings
+                    .insert(group.clone(), HaystackEntry::InsertGroup(group.clone()));
+            }
+        }
+        haystack
+    });
+
+    let found = Memo::new(move |_| {
+        let haystack = haystack.read();
+        let pattern = Pattern::parse(&input.get(), CaseMatching::Ignore, Normalization::Smart);
+        let out = pattern.match_list(&haystack.haystack, &mut matcher.lock().unwrap());
+        let mut found = HashSet::new();
+        let mut olist = Vec::with_capacity(5);
+        for (entry, _) in out {
+            let entry = &haystack.mappings[entry];
+            if found.insert(entry) {
+                olist.push(entry.clone());
+            }
+            if found.len() == 5 {
+                break;
+            }
+        }
+        olist
+    });
+
+    let foundlist = move || {
+        if input.read().is_empty() || found.get().is_empty() {
+            view! {
+                <>
+                    <div
+                        class="bg-slate-800 py-2 px-4 rounded-lg text-nowrap"
+                    >
+                        {"No matches found..."}
+                    </div>
+                </>
+            }
+            .into_any()
+        } else {
+            view! {
+                <>
+                    <For
+                        each=move || found.get().into_iter().enumerate()
+                        key=|(i, entry)| (*i, entry.clone())
+                        children=move |(i, entry)| {
+                            let name = match entry {
+                                HaystackEntry::Card(card) => MULTI_LIBRARY.libraries[&selected_library.get()].get_card(&card).title.title.clone(),
+                                HaystackEntry::Insert(insert) => MULTI_LIBRARY.libraries[&selected_library.get()].get_insert(&insert).title.title.clone(),
+                                HaystackEntry::InsertGroup(group) => group.clone(),
+                            };
+                            let classes = if i == 0 {
+                                "bg-blue-800 hover:bg-blue-600 py-2 px-4 rounded-lg cursor-pointer text-nowrap"
+                            } else {
+                                "bg-slate-800 hover:bg-slate-600 py-2 px-4 rounded-lg cursor-pointer text-nowrap"
+                            };
+                            view! {
+                                <button
+                                    type="button"
+                                    on:click=move |_| {
+                                        match &found.read()[i] {
+                                            HaystackEntry::Card(card) => {
+                                                let card = MULTI_LIBRARY.libraries[&selected_library.get()].get_card(card);
+                                                set_print_file.write().add_cards(card);
+                                            }
+                                            HaystackEntry::Insert(insert) => {
+                                                set_print_file.write().add_insert(insert.clone());
+                                            }
+                                            HaystackEntry::InsertGroup(group) => {
+                                                let mut set_print_file = set_print_file.write();
+                                                for insert in MULTI_LIBRARY.libraries[&selected_library.get()].inserts.values() {
+                                                    if insert.insert_groups.contains(group) {
+                                                        set_print_file.add_insert(insert.id.clone());
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                    value={i}
+                                    class={classes}
+                                >
+                                    {name}
+                                </button>
+                            }
+                        }
+                    />
+                </>
+            }.into_any()
+        }
+    };
+
+    view! {
+        <div class="bg-zinc-700 p-2 shadow-lg">
+            <form
+                class="grid grid-cols-[1fr_min-content] md:grid-cols-[min-content_1fr_min-content] gap-2"
+                on:submit=move |v| {
+                    v.prevent_default();
+                    let found = found.read();
+                    if found.is_empty() {
+                        return;
+                    }
+                    match &found[0] {
+                        HaystackEntry::Card(card) => {
+                            let card = MULTI_LIBRARY.libraries[&selected_library.get()].get_card(card);
+                            set_print_file.write().add_cards(card);
+                        }
+                        HaystackEntry::Insert(insert) => {
+                            set_print_file.write().add_insert(insert.clone());
+                        }
+                        HaystackEntry::InsertGroup(group) => {
+                            let mut set_print_file = set_print_file.write();
+                            for insert in MULTI_LIBRARY.libraries[&selected_library.get()].inserts.values() {
+                                if insert.insert_groups.contains(group) {
+                                    set_print_file.add_insert(insert.id.clone());
+                                }
+                            }
+                        }
+                    }
+
+                }
+            >
+                <select class="col-span-full md:col-[unset] px-2">
+                    <option value="english">{"NSG English"}</option>
+                    <option value="nsg" disabled>{"WIP"}</option>
+                </select>
+                <input
+                    type="text"
+                    on:input:target=move |ev| {
+                        set_input.set(ev.target().value());
+                    }
+                    name="data-search"
+                    class="bg-zinc-900 border-1 border-white py-2 px-4 rounded-md"
+                    prop:value=input
+                />
+                <button
+                    type="submit"
+                    value="+"
+                    class="bg-blue-800 hover:bg-blue-600 py-2 px-4 rounded-lg cursor-pointer font-bold text-lg"
+                >{"+"}</button>
+                <div
+                    class="col-span-full flex gap-2 overflow-x-scroll"
+                >
+                    {foundlist}
+                </div>
+            </form>
+        </div>
+    }
+}
+
+#[component]
 fn DecklistView() -> impl IntoView {
     let (print_file, _) = use_print_file();
-    let tab = use_tab();
-    let (libraries, _) = use_libraries();
-    let print_index = use_print_index();
+    let open_dialog = use_open_dialog();
     let num_items = Memo::new(move |_| print_file.with(PrintFile::len));
     view! {
         <div class="flex flex-wrap gap-2 justify-center">
@@ -175,10 +357,10 @@ fn DecklistView() -> impl IntoView {
                         })
                     });
                     let selected = Memo::new(move |_| {
-                        print_index.get().is_some_and(|index| index == i) && matches!(tab.get(), Tab::EditCard)
+                        open_dialog.get().is_some_and(|dialog| dialog == OpenDialog::Edit(i))
                     });
                     let name = Memo::new(move |_| card.with(|card| {
-                        card.as_ref().map(|card| card.name(&libraries.read().library).to_string()).unwrap_or_default()
+                        card.as_ref().map(|card| card.name().to_string()).unwrap_or_default()
                     }));
                     let image_url = Memo::new(move |_| card.with(|card| {
                         card.as_ref().map(FilledCardSlot::image_url).unwrap_or_default()
@@ -186,13 +368,12 @@ fn DecklistView() -> impl IntoView {
                     view! {
                         <button
                             on:click:target=move |_| {
-                                print_index.set(Some(i));
-                                tab.set(Tab::EditCard);
+                                open_dialog.set(Some(OpenDialog::Edit(i)));
                             }
                         >
                             <img
                                 class:ring-4=selected
-                                class="ring-blue-800 w-24"
+                                class="ring-blue-800 w-24 cursor-pointer"
                                 src=image_url
                                 alt=name
                             />
@@ -205,59 +386,171 @@ fn DecklistView() -> impl IntoView {
 }
 
 #[component]
-fn ControlConfig() -> impl IntoView {
-    let tab = use_tab();
+fn OpenDialog() -> impl IntoView {
+    let open_dialog = use_open_dialog();
 
-    let name = move || match &*tab.read() {
-        Tab::ConfigureLibrary => view! { <Libraries /> }.into_any(),
-        Tab::AddCard => view! { <Add /> }.into_any(),
-        Tab::EditCard => view! { <Edit /> }.into_any(),
-        Tab::Print => view! { <Print /> }.into_any(),
-        tab => view! { <p>{tab.name()}</p> }.into_any(),
-    };
-    let tabs = move || {
-        let added_tab = {
-            let tab = tab.get();
-            (!TABS.contains(&tab)).then_some(tab)
-        };
-        TABS.iter()
-            .copied()
-            .chain(added_tab)
-            .map(|t| {
-                let selected = move || tab.get() == t;
-                let not_selected = move || !selected();
-                view! {
-                    <button
-                        class="hover:bg-zinc-600 p-2 rounded-t-xl cursor-pointer"
-                        class:bg-zinc-700=selected
-                        class:bg-zinc-800=not_selected
-                        on:click=move |_| tab.set(t)
-                    >
-                        {t.name()}
-                    </button>
-                }
-            })
-            .collect::<Vec<_>>()
-    };
-    view! {
-        <div class="grid auto-rows-[min-content_1fr] px-2 h-full">
-            <div class="grid grid-cols-5 gap-2 bg-zinc-900 max-w-screen-md">{tabs}</div>
-            <div class="bg-zinc-700 p-4 min-h-[250px]">{name}</div>
-        </div>
+    let modal_ref = NodeRef::<Dialog>::new();
+    let _ = on_click_outside(modal_ref, move |_| open_dialog.set(None));
+
+    move || {
+        if let Some(open_dialog) = open_dialog.get() {
+            view! {
+                <div class="absolute top-0 left-0 w-full h-full bg-black/50 cursor-pointer" />
+                <dialog
+                    role="dialog"
+                    class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 min-w-[min(80ch,80%)] p-4 flex flex-col gap-2 rounded-lg"
+                    node_ref=modal_ref
+                    open
+                >
+                    {move || match open_dialog {
+                        OpenDialog::Edit(_) => view! { <DialogContentCard /> }.into_any(),
+                        OpenDialog::Print => view! { <PrintContent /> }.into_any(),
+                        OpenDialog::JnetImport => view! { <JnetImportContent /> }.into_any(),
+                        OpenDialog::NrdbImport => view! { <NrdbImportContent /> }.into_any(),
+                    }}                    
+                </dialog>
+            }.into_any()
+        } else {
+            view! {}.into_any()
+        }
     }
 }
 
 #[component]
-fn Print() -> impl IntoView {
+fn DialogContentCard() -> impl IntoView {
+    let open_dialog = use_open_dialog();
+    let (print_file, _) = use_print_file();
+    let (_, set_print_file) = use_print_file();
+
+    let card = Memo::new(move |_| {
+        let print_index = open_dialog.get();
+        print_file.with(|print_file| {
+            print_index.and_then(|index| match index {
+                OpenDialog::Edit(index) => print_file.get(index).cloned(),
+                _ => None,
+            })
+        })
+    });
+
+    let name = Memo::new(move |_| {
+        card.with(|card| {
+            card.as_ref()
+                .map(|card| card.name().to_string())
+                .unwrap_or_default()
+        })
+    });
+
+    let face_info = Memo::new(move |_| {
+        let Some(FilledCardSlot::Card {
+            printing:
+                ref face_id @ CardFacePrintingId {
+                    face_or_variant_specifier: Some(face),
+                    ref print_group,
+                    ..
+                },
+        }) = card.get()
+        else {
+            return None;
+        };
+        let card_data = MULTI_LIBRARY.libraries[&*print_group].get_face_card(&face_id);
+        let faces = match &card_data.alternate_face_data {
+            AlternateFaceMetadata::Single => return None,
+            AlternateFaceMetadata::Multiple(titles) => titles.len() + 1,
+            &AlternateFaceMetadata::Variants(n) => n,
+        };
+        Some((face, face_id.clone(), faces))
+    });
+
+    let face_edit = move || {
+        let Some((face, face_id, faces)) = face_info.get() else {
+            return ().into_any();
+        };
+        view! {
+            <For
+                each=move || 1..=faces
+                key=|i| *i
+                children=move |button_face| {
+                    let face_id = face_id.clone();
+                    let selected = button_face == face;
+                    view! {
+                        <button
+                            class="hover:bg-zinc-600 p-2 rounded-lg cursor-pointer"
+                            class:bg-blue-800=selected
+                            class:bg-zinc-800=!selected
+                            on:click:target=move |_| {
+                                let mut new = face_id.clone();
+                                new.face_or_variant_specifier = Some(button_face);
+                                if let Some(OpenDialog::Edit(index)) = open_dialog.get() {
+                                    set_print_file.write().update_card(index, new);
+                                }
+                            }
+                        >
+                            {"Face "} {button_face}
+                        </button>
+                    }
+                }
+            />
+        }
+        .into_any()
+    };
+
+    let modal_ref = NodeRef::<Dialog>::new();
+    let _ = on_click_outside(modal_ref, move |_| open_dialog.set(None));
+
+    let close_ref = NodeRef::<Button>::new();
+    Effect::new(move |_| {
+        if open_dialog.get().is_some() {
+            if let Some(close_ref) = close_ref.get() {
+                let _ = close_ref.focus();
+            }
+        }
+    });
+
+    move || {
+        view! {
+            <div class="flex justify-between items-start">
+                <p class="font-bold text-lg text-balance">{name}</p>
+                <button
+                    node_ref=close_ref
+                    class="cursor-pointer"
+                    on:click:target=move |_| {
+                        open_dialog.set(None);
+                    }
+                >
+                    {"(close)"}
+                </button>
+            </div>
+            <div class="flex gap-2 flex-wrap">
+                <button
+                    class="bg-red-800 hover:bg-red-600 p-2 rounded-lg cursor-pointer"
+                    on:click:target=move |_| {
+                        let (_, set_print_file) = use_print_file();
+                        if let Some(OpenDialog::Edit(index)) = open_dialog.get() {
+                            set_print_file.write().remove_card(index);
+                        };
+                        open_dialog.set(None);
+                    }
+                >
+                    {"Remove"}
+                </button>
+                {face_edit}
+            </div>
+        }
+        .into_any()
+    }
+}
+
+#[component]
+fn PrintContent() -> impl IntoView {
     let (print_config, set_print_config) = use_print_config();
     let printing = use_printing();
     let sizes = [PrintSize::A4, PrintSize::UsLetter];
     let cut_indicators = [CutIndicator::Lines, CutIndicator::Marks, CutIndicator::None];
     let bleed_modes = [
-        BleedMode::Borderless,
-        BleedMode::Small,
+        BleedMode::None,
+        BleedMode::Narrow,
         BleedMode::Medium,
-        BleedMode::Large,
+        BleedMode::Wide,
     ];
     let is_printing = Memo::new(move |_| printing.get());
     let is_not_printing = Memo::new(move |_| !is_printing.get());
@@ -270,8 +563,12 @@ fn Print() -> impl IntoView {
     });
     view! {
         <div class="flex flex-col gap-2 h-full justify-between">
+            <p class="text-lg font-bold">{"Print"}</p>
+            <p class="bg-red-800 text-white font-bold px-2 py-1 w-max">
+                {"Remember to disable any margin when printing!"}
+            </p>
             <div class="flex gap-2 items-center flex-wrap">
-                <div class="font-bold">Paper Size</div>
+                <div class="font-bold w-full md:w-[unset]">Paper Size</div>
                 <For
                     each=move || sizes
                     key=|size| *size
@@ -297,7 +594,7 @@ fn Print() -> impl IntoView {
                 />
             </div>
             <div class="flex gap-2 items-center flex-wrap">
-                <div class="font-bold">Cut Indicator</div>
+                <div class="font-bold w-full md:w-[unset]">Cut Indicator</div>
                 <For
                     each=move || cut_indicators
                     key=|cut| *cut
@@ -323,7 +620,7 @@ fn Print() -> impl IntoView {
                 />
             </div>
             <div class="flex gap-2 items-center flex-wrap">
-                <div class="font-bold">Bleed Mode</div>
+                <div class="font-bold w-full md:w-[unset]">{"Bleed Mode"}</div>
                 <For
                     each=move || bleed_modes
                     key=|bleed| *bleed
@@ -364,6 +661,225 @@ fn Print() -> impl IntoView {
             </div>
         </div>
     }
+}
+
+#[component]
+fn JnetImportContent() -> impl IntoView {
+    let (text_content, set_text_content) = signal(String::new());
+    let (_print_file, set_print_file) = use_print_file();
+    view! {
+        <p class="text-lg font-bold">{"JNET Import"}</p>
+        <p class="bg-red-800 text-white font-bold px-2 py-1 w-max">
+            {"Don't forgot to add your ID after!"}
+        </p>
+        <textarea
+            class="bg-zinc-900 border-1 border-white p-2 rounded-md"
+            prop:value=move || text_content.get()
+            on:input:target=move |ev| set_text_content.set(ev.target().value())
+        >
+            {text_content.get_untracked()}
+        </textarea>
+        <button
+            class="bg-blue-800 hover:bg-blue-600 p-2 rounded-lg cursor-pointer font-bold text-lg"
+            on:click:target=move |_| {
+                let text_content = text_content.get();
+                'line: for line in text_content.lines() {
+                    let Some((count, name)) = line.split_once(" ") else {
+                        console_warn(&format!("Invalid Line: {line}"));
+                        continue;
+                    };
+                    let Ok(count) = count.trim().parse::<usize>() else {
+                        console_warn(&format!("Invalid Number: {count}"));
+                        continue;
+                    };
+                    for meta in MULTI_LIBRARY.libraries["english"].cards.values() {
+                        if meta.title.title == name || meta.title.stripped_title == name {
+                            for _ in 0..count {
+                                set_print_file.write().add_cards(meta);
+                            }
+                            continue 'line;
+                        }
+                    }
+                    console_warn(&format!("Card not found: {name}"));
+                }
+            }
+        >
+            {"Import"}
+        </button>
+    }
+}
+
+#[component]
+fn NrdbImportContent() -> impl IntoView {
+    let (text_content, set_text_content) = signal(String::new());
+    let import_status = use_import_status();
+    let open_dialog = use_open_dialog();
+    Effect::new(move || {
+        console_log(&format!("{:?}", import_status.get()));
+    });
+    view! {
+        <p class="text-lg font-bold">{"NRDB Import"}</p>
+        <p class="bg-red-800 text-white font-bold px-2 py-1 w-max">
+            {"Unsupported cards will be skipped!"}
+        </p>
+        <form
+            class="contents"
+            on:submit=move |ev| {
+                ev.prevent_default();
+                let text_content = text_content.get();
+                do_nrdb_import(&text_content, import_status, open_dialog);
+            }
+        >
+            <input
+                type="text"
+                class="bg-zinc-900 border-1 border-white p-2 rounded-md"
+                prop:value=move || text_content.get()
+                on:input:target=move |ev| set_text_content.set(ev.target().value())
+            />
+            <button
+                class="bg-blue-800 hover:bg-blue-600 p-2 rounded-lg cursor-pointer font-bold text-lg"
+            >
+                {"Import"}
+            </button>
+        </form>
+    }
+}
+
+#[component]
+fn ControlConfig() -> impl IntoView {
+    let open_dialog = use_open_dialog();
+    let (_, set_print_file) = use_print_file();
+    view! {
+        <div class="flex flex-wrap gap-2 py-2 px-4 bg-zinc-700 items-center justify-between">
+            <p class="font-bold text-lg">{"Proxy.NRO"}</p>
+            <div class="flex flex-wrap gap-2 items-center">
+                <button
+                    class="bg-green-800 hover:bg-green-600 p-2 rounded-lg cursor-pointer"
+                    on:click:target=move |_| {
+                        open_dialog.set(Some(OpenDialog::Print));
+                    }
+                >
+                    {"Print"}
+                </button>
+                <button
+                    class="bg-zinc-800 hover:bg-zinc-600 p-2 rounded-lg cursor-pointer"
+                    on:click:target=move |_| {
+                        open_dialog.set(Some(OpenDialog::JnetImport));
+                    }
+                >
+                    {"JNET"}
+                </button>
+                <button
+                    class="bg-zinc-800 hover:bg-zinc-600 p-2 rounded-lg cursor-pointer"
+                    on:click:target=move |_| {
+                        open_dialog.set(Some(OpenDialog::NrdbImport));
+                    }
+                >
+                    {"NRDB"}
+                </button>
+                <button
+                    class="bg-red-800 hover:bg-red-600 p-2 rounded-lg cursor-pointer"
+                    on:click:target=move |_| {
+                        set_print_file.write().clear();
+                    }
+                >
+                    {"Clear"}
+                </button>
+            </div>
+        </div>
+    }
+}
+
+fn do_nrdb_import(
+    from: &str,
+    import_status: Subfield<Store<AppState>, AppState, Option<ImportStatus>>,
+    open_dialog: Subfield<Store<AppState>, AppState, Option<OpenDialog>>,
+) {
+    let (_print_file, set_print_file) = use_print_file();
+
+    import_status.set(Some(ImportStatus::Importing));
+
+    let public_list = Regex::new(r#"deck\/view\/([0-9a-f-]+)"#).unwrap();
+    let published_list = Regex::new(r#"decklist\/([0-9a-f-]+)\/"#).unwrap();
+
+    let public_list_id = public_list
+        .captures(from)
+        .and_then(|captures| captures.get(1))
+        .map(|m| m.as_str());
+    let published_list_id = published_list
+        .captures(from)
+        .and_then(|captures| captures.get(1))
+        .map(|m| m.as_str());
+
+    let query_url = match (public_list_id, published_list_id) {
+        (Some(id), _) => format!("https://netrunnerdb.com/api/2.0/public/deck/{id}"),
+        (_, Some(id)) => format!("https://netrunnerdb.com/api/2.0/public/decklist/{id}"),
+        _ => {
+            import_status.set(Some(ImportStatus::InvalidFormat));
+            return;
+        }
+    };
+
+    spawn_local(async move {
+        let Ok(data) = reqwest::get(query_url).await else {
+            import_status.set(Some(ImportStatus::CouldNotFind));
+            return;
+        };
+        let Ok(data) = data.json::<serde_json::Value>().await else {
+            console_error("Failed to parse JSON");
+            import_status.set(Some(ImportStatus::Failed));
+            return;
+        };
+        let Some(data) = data.get("data") else {
+            console_error("JSON missing `data`");
+            import_status.set(Some(ImportStatus::Failed));
+            return;
+        };
+        let Some(data) = data.as_array() else {
+            console_error("JSON `data` is not an array");
+            import_status.set(Some(ImportStatus::Failed));
+            return;
+        };
+        let Some(deck) = data.get(0) else {
+            console_error("JSON `data` is empty");
+            import_status.set(Some(ImportStatus::Failed));
+            return;
+        };
+        let Some(cards) = deck.get("cards") else {
+            console_error("JSON `deck` is missing `cards`");
+            import_status.set(Some(ImportStatus::Failed));
+            return;
+        };
+        let Some(cards) = cards.as_object() else {
+            console_error("JSON `deck.cards` is not an object");
+            import_status.set(Some(ImportStatus::Failed));
+            return;
+        };
+        'nrdb_card: for (card, count) in cards {
+            let Some(count) = count.as_u64() else {
+                console_error("JSON `deck.cards` value is not a number");
+                import_status.set(Some(ImportStatus::Failed));
+                return;
+            };
+            let Ok(nrdb_printing) = card.parse::<u32>() else {
+                console_error("JSON `deck.cards` key is not a number");
+                import_status.set(Some(ImportStatus::Failed));
+                return;
+            };
+            console_log(&format!("Importing {count} {nrdb_printing}"));
+            for card in MULTI_LIBRARY.libraries["english"].cards.values() {
+                if card.printings.iter().any(|printing| printing.id == nrdb_printing) {
+                    for _ in 0..count {
+                        set_print_file.write().add_cards(card);
+                    }
+                    continue 'nrdb_card;
+                }
+            }
+            console_warn(&format!("Cannot find {nrdb_printing}"));
+        }
+        import_status.set(None);
+        open_dialog.set(None);
+    });
 }
 
 #[allow(clippy::too_many_lines)]
@@ -487,118 +1003,6 @@ fn do_print(printing: Subfield<Store<AppState>, AppState, bool>) {
     });
 }
 
-#[component]
-fn Edit() -> impl IntoView {
-    let (print_file, set_print_file) = use_print_file();
-    let (libraries, _) = use_libraries();
-    let print_index = use_print_index();
-
-    let card = Memo::new(move |_| {
-        let print_index = print_index.get();
-        print_file.with(|print_file| print_index.and_then(|index| print_file.get(index).cloned()))
-    });
-
-    let name = Memo::new(move |_| {
-        let libraries = libraries.read();
-        card.with(|card| {
-            card.as_ref()
-                .map(|card| card.name(&libraries.library).to_string())
-                .unwrap_or_default()
-        })
-    });
-
-    let face_info = Memo::new(move |_| {
-        let Some(FilledCardSlot::Card {
-            printing:
-                face_id @ CardFacePrintingId {
-                    face_or_variant_specifier: Some(face),
-                    ..
-                },
-        }) = card.get()
-        else {
-            return None;
-        };
-        let libraries = libraries.read();
-        let card_data = libraries.library.get_face_card(&face_id);
-
-        let faces = match &card_data.alternate_face_data {
-            AlternateFaceMetadata::Single => return None,
-            AlternateFaceMetadata::Multiple(titles) => titles.len() + 1,
-            &AlternateFaceMetadata::Variants(n) => n,
-        };
-        Some((face, face_id, faces))
-    });
-
-    let face_edit = move || {
-        let Some((face, face_id, faces)) = face_info.get() else {
-            return ().into_any();
-        };
-
-        view! {
-            <div class="flex gap-2">
-                <For
-                    each=move || 1..=faces
-                    key=|i| *i
-                    children=move |button_face| {
-                        let face_id = face_id.clone();
-                        let selected = button_face == face;
-                        let libraries = libraries.read();
-                        view! {
-                            <button
-                                class="hover:bg-zinc-600 p-2 rounded-lg cursor-pointer"
-                                class:bg-blue-800=selected
-                                class:bg-zinc-800=!selected
-                                on:click:target=move |_| {
-                                    let mut new = face_id.clone();
-                                    new.face_or_variant_specifier = Some(button_face);
-                                    if let Some(index) = print_index.get() {
-                                        set_print_file.write().update_card(index, new, &libraries.library);
-                                    }
-                                }
-                            >
-                                {"Face "} {button_face}
-                            </button>
-                        }
-                    }
-                />
-            </div>
-        }
-        .into_any()
-    };
-
-    view! {
-        <div class="flex flex-col gap-2">
-            <div class="text-lg font-bold">{name}</div>
-            <BasicEdit />
-            {face_edit}
-        </div>
-    }
-}
-
-#[component]
-fn BasicEdit() -> impl IntoView {
-    let print_index = use_print_index();
-    let tab = use_tab();
-    view! {
-        <div class="flex gap-2">
-            <button
-                class="bg-red-800 hover:bg-red-600 p-2 rounded-lg cursor-pointer"
-                on:click:target=move |_| {
-                    let (libraries, _) = use_libraries();
-                    let (_, set_print_file) = use_print_file();
-                    let library = libraries.get().library;
-                    if let Some(index) = print_index.get() {
-                        set_print_file.write().remove_card(index, &library);
-                    };
-                    tab.set(Tab::AddCard);
-                }
-            >
-                {"Remove"}
-            </button>
-        </div>
-    }
-}
-
 // bg-zinc-700
 // ring-4
 // bg-zinc-800
@@ -607,112 +1011,11 @@ fn BasicEdit() -> impl IntoView {
 #[derive(PartialEq, Debug, Clone)]
 struct Haystack {
     haystack: Vec<String>,
-    mappings: HashMap<String, CardId>,
+    mappings: HashMap<String, HaystackEntry>,
 }
-
-#[component]
-fn Add() -> impl IntoView {
-    let (libraries, _set_libraries) = use_libraries();
-    let (_, set_print_file) = use_print_file();
-    let mut matcher_config = nucleo_matcher::Config::DEFAULT;
-    matcher_config.ignore_case = true;
-    matcher_config.normalize = true;
-    matcher_config.prefer_prefix = true;
-    let matcher = Arc::new(Mutex::new(Matcher::new(matcher_config)));
-
-    let (input, set_input) = signal(String::new());
-
-    let haystack = Memo::new(move |_| {
-        let mut haystack = Haystack {
-            haystack: vec![],
-            mappings: HashMap::new(),
-        };
-        for (card, meta) in &libraries.read().library.cards {
-            haystack.haystack.push(meta.title.title.clone());
-            haystack.haystack.push(meta.title.stripped_title.clone());
-            haystack
-                .mappings
-                .insert(meta.title.title.clone(), card.clone());
-            haystack
-                .mappings
-                .insert(meta.title.stripped_title.clone(), card.clone());
-        }
-        haystack
-    });
-
-    let found = Memo::new(move |_| {
-        let haystack = haystack.read();
-        let pattern = Pattern::parse(&input.get(), CaseMatching::Ignore, Normalization::Smart);
-        let out = pattern.match_list(&haystack.haystack, &mut matcher.lock().unwrap());
-        let mut found = HashSet::new();
-        let mut olist = Vec::with_capacity(5);
-        for (entry, _) in out {
-            let card = &haystack.mappings[entry];
-            if found.insert(card) {
-                olist.push(card.clone());
-            }
-            if found.len() == 5 {
-                break;
-            }
-        }
-        olist
-    });
-
-    view! {
-        <input
-            type="text"
-            class="bg-zinc-900 border-1 border-white p-2 rounded-md w-full"
-            on:input:target=move |ev| {
-            // .value() returns the current value of an HTML input element
-                set_input.set(ev.target().value());
-            }
-            on:keydown=move |key| {
-                if key.key() == "Enter" {
-                    if let Some(found) = found.read().first() {
-                        let libraries = libraries.read();
-                        let card = libraries.library.get_card(found);
-                        set_print_file.write().add_cards(card);
-                    }
-                }
-            }
-            prop:value=input
-        />
-        <For
-            each=move || found.get()
-            key=|card| card.clone()
-            children=move |card| {
-                let libraries = libraries.read();
-                let card = libraries.library.get_card(&card);
-                view! { <div>{card.title.title.clone()}</div> }
-            }
-        />
-    }
-}
-
-#[component]
-fn Libraries() -> impl IntoView {
-    let (libraries, _set_libraries) = use_libraries();
-    let libraries = move || {
-        MULTI_LIBRARY
-            .libraries
-            .keys()
-            .map(|name| {
-                let loaded = libraries.read().loaded_libraries.contains(name);
-                view! {
-                    <button
-                        class="p-2 cursor-pointer rounded-lg"
-                        class:bg-blue-800=loaded
-                        class:bg-zinc-800=!loaded
-                    >
-                        {name.as_str()}
-                    </button>
-                }
-            })
-            .collect::<Vec<_>>()
-    };
-    view! {
-        <div>
-            {libraries}
-        </div>
-    }
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+pub enum HaystackEntry {
+    Card(CardId),
+    Insert(InsertId),
+    InsertGroup(String),
 }

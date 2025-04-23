@@ -1,42 +1,64 @@
 [[collection]]
+group = "english"
 name = "NSG English"
 
+[[collection.insert]]
+id = "corp_basic_actions"
+title = "Corp Basic Actions"
+insert_groups = ["Basic Actions"]
+
+[[collection.insert]]
+id = "mark_archives"
+title = "Mark Archives"
+insert_groups = ["Mark Cards"]
+
+[[collection.insert]]
+id = "mark_hq"
+title = "Mark HQ"
+insert_groups = ["Mark Cards"]
+
+[[collection.insert]]
+id = "mark_rnd"
+title = "Mark R&D"
+insert_groups = ["Mark Cards"]
+
+[[collection.insert]]
+id = "runner_basic_actions"
+title = "Runner Basic Actions"
+insert_groups = ["Basic Actions"]
+
+[[collection.insert]]
+id = "tag_tracking_area"
+title = "Tag Tracking Area"
+
 [[collection.printing]]
-group = "english"
 spec = "system_gateway"
 name = "System Gateway (English)"
 
 [[collection.printing]]
-group = "english"
 spec = "elevation"
 name = "Elevation (English)"
 
 [[collection.printing]]
-group = "english"
 spec = "downfall"
 name = "Downfall (English)"
 
 [[collection.printing]]
-group = "english"
 spec = "uprising"
 name = "Uprising (English)"
 
 [[collection.printing]]
-group = "english"
 spec = "midnight_sun"
 name = "Midnight Sun (English)"
 
 [[collection.printing]]
-group = "english"
 spec = "parhelion"
 name = "Parhelion (English)"
 
 [[collection.printing]]
-group = "english"
 spec = "the_automata_initiative"
 name = "The Automata Initiative (English)"
 
 [[collection.printing]]
-group = "english"
 spec = "rebellion_without_rehearsal"
 name = "Rebellion Without Rehearsal (English)"

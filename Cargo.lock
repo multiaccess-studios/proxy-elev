@@ -2717,6 +2717,7 @@ dependencies = [
  "nucleo-matcher",
  "printpdf",
  "reactive_stores",
+ "regex",
  "reqwest",
  "ron",
  "serde",

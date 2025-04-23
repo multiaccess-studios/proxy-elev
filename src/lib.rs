@@ -1,6 +1,5 @@
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeSet, HashMap, HashSet};
 
-use leptos::leptos_dom::logging::console_log;
 use serde::{Deserialize, Serialize};
 
 pub const CARD_IMAGE_URL_ROOT: &str = match option_env!("NRO_PROXY_CARD_IMAGE_URL_ROOT") {
@@ -70,6 +69,7 @@ pub struct CardId(pub String);
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct MultiLibrary {
     pub libraries: HashMap<String, Library>,
+    pub collection_names: HashMap<String, String>,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
@@ -79,6 +79,10 @@ pub struct Library {
     pub inserts: HashMap<InsertId, InsertMetadata>,
 }
 impl Library {
+    #[must_use]
+    pub fn try_get_card(&self, id: &CardId) -> Option<&CardMetadata> {
+        self.cards.get(id)
+    }
     #[must_use]
     pub fn get_card(&self, id: &CardId) -> &CardMetadata {
         &self.cards[id]
@@ -125,10 +129,11 @@ pub struct PrintingMetadata {
     pub printing_name: String,
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct InsertMetadata {
     pub title: Title,
     pub id: InsertId,
+    pub insert_groups: HashSet<String>,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]
@@ -177,21 +182,42 @@ impl FilledCardSlot {
         }
     }
     #[must_use]
-    pub fn name<'a>(&self, library: &'a Library) -> &'a str {
+    pub fn name<'a>(&self) -> &'a str {
         match self {
             FilledCardSlot::Card { printing } => match printing.face_or_variant_specifier {
-                None => &library.get_face_card(printing).title.title,
+                None => {
+                    &MULTI_LIBRARY.libraries[&printing.print_group]
+                        .get_face_card(printing)
+                        .title
+                        .title
+                }
                 Some(n) => match n {
-                    1 => &library.get_face_card(printing).title.title,
-                    n => match &library.get_face_card(printing).alternate_face_data {
+                    1 => {
+                        &MULTI_LIBRARY.libraries[&printing.print_group]
+                            .get_face_card(printing)
+                            .title
+                            .title
+                    }
+                    n => match &MULTI_LIBRARY.libraries[&printing.print_group]
+                        .get_face_card(printing)
+                        .alternate_face_data
+                    {
                         AlternateFaceMetadata::Single | AlternateFaceMetadata::Variants(_) => {
-                            &library.get_face_card(printing).title.title
+                            &MULTI_LIBRARY.libraries[&printing.print_group]
+                                .get_face_card(printing)
+                                .title
+                                .title
                         }
                         AlternateFaceMetadata::Multiple(titles) => &titles[n - 2].title,
                     },
                 },
             },
-            FilledCardSlot::Insert { insert } => &library.get_insert(insert).title.title,
+            FilledCardSlot::Insert { insert } => {
+                &MULTI_LIBRARY.libraries[&insert.print_group]
+                    .get_insert(insert)
+                    .title
+                    .title
+            }
         }
     }
 }
@@ -202,6 +228,10 @@ pub struct PrintFile {
     auto_faces: HashMap<(CardId, usize), usize>,
 }
 impl PrintFile {
+    pub fn clear(&mut self) {
+        self.slots.clear();
+        self.auto_faces.clear();
+    }
     #[must_use]
     pub fn len(&self) -> usize {
         self.slots.len()
@@ -221,13 +251,14 @@ impl PrintFile {
     pub fn add_insert(&mut self, insert: InsertId) {
         self.slots.push(FilledCardSlot::Insert { insert });
     }
-    pub fn remove_card(&mut self, index: usize, library: &Library) {
+    pub fn remove_card(&mut self, index: usize) {
         if index < self.slots.len() {
             let slot = self.slots.remove(index);
             if let &FilledCardSlot::Card {
                 printing:
                     ref face @ CardFacePrintingId {
                         face_or_variant_specifier: Some(variant),
+                        ref print_group,
                         ..
                     },
             } = &slot
@@ -236,7 +267,7 @@ impl PrintFile {
                     alternate_face_data: AlternateFaceMetadata::Variants(_),
                     id,
                     ..
-                } = library.get_face_card(face)
+                } = MULTI_LIBRARY.libraries[print_group].get_face_card(face)
                 {
                     let auto_faces = self.auto_faces.entry((id.clone(), variant)).or_default();
                     *auto_faces = auto_faces.saturating_sub(1);
@@ -244,7 +275,7 @@ impl PrintFile {
             }
         }
     }
-    pub fn update_card(&mut self, index: usize, card: CardFacePrintingId, library: &Library) {
+    pub fn update_card(&mut self, index: usize, card: CardFacePrintingId) {
         if let Some(slot) = self.slots.get_mut(index) {
             if let &FilledCardSlot::Card {
                 printing:
@@ -258,7 +289,7 @@ impl PrintFile {
                     alternate_face_data: AlternateFaceMetadata::Variants(_),
                     id,
                     ..
-                } = library.get_face_card(face)
+                } = MULTI_LIBRARY.libraries[&card.print_group].get_face_card(face)
                 {
                     let auto_faces = self.auto_faces.entry((id.clone(), variant)).or_default();
                     *auto_faces = auto_faces.saturating_sub(1);
@@ -314,8 +345,6 @@ impl PrintFile {
                     .auto_faces
                     .entry((meta.id.clone(), next_variant))
                     .or_default() += 1;
-                console_log(&next_variant.to_string());
-                console_log(&format!("{:?}", meta.printings));
                 let face = meta
                     .printings
                     .iter()
@@ -331,6 +360,7 @@ impl PrintFile {
 }
 
 pub const MANIFEST: &str = include_str!("manifest.ron");
+pub static MULTI_LIBRARY: std::sync::LazyLock<MultiLibrary> = std::sync::LazyLock::new(manifest);
 
 #[allow(clippy::missing_panics_doc)]
 #[must_use]
@@ -389,29 +419,29 @@ impl std::fmt::Display for CutIndicator {
 #[derive(Debug, Copy, Default, Clone, Eq, Hash, PartialEq, Serialize, Deserialize)]
 pub enum BleedMode {
     #[default]
-    Borderless,
-    Small,
+    None,
+    Narrow,
     Medium,
-    Large,
+    Wide,
 }
 impl BleedMode {
     #[must_use]
     pub const fn bleed(self) -> f32 {
         match self {
-            BleedMode::Borderless => 0.0,
-            BleedMode::Small => 2.0,
+            BleedMode::None => 0.0,
+            BleedMode::Narrow => 2.0,
             BleedMode::Medium => 4.0,
-            BleedMode::Large => 6.0,
+            BleedMode::Wide => 6.0,
         }
     }
 }
 impl std::fmt::Display for BleedMode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            BleedMode::Borderless => "Borderless".fmt(f),
-            BleedMode::Small => "Small".fmt(f),
+            BleedMode::None => "None".fmt(f),
+            BleedMode::Narrow => "Narrow".fmt(f),
             BleedMode::Medium => "Medium".fmt(f),
-            BleedMode::Large => "Large".fmt(f),
+            BleedMode::Wide => "Wide".fmt(f),
         }
     }
 }

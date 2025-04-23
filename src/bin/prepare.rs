@@ -1,5 +1,5 @@
 use std::{
-    collections::{BTreeSet, HashMap},
+    collections::{BTreeSet, HashMap, HashSet},
     io::Write,
     path::PathBuf,
 };
@@ -7,8 +7,8 @@ use std::{
 use anyhow::Context;
 use clap::Parser;
 use proxy_elev::{
-    AlternateFaceMetadata, CardFacePrintingId, CardId, CardMetadata, Library, MultiLibrary,
-    PrintingMetadata, Title,
+    AlternateFaceMetadata, CardFacePrintingId, CardId, CardMetadata, InsertId, InsertMetadata,
+    Library, MultiLibrary, PrintingMetadata, Title,
 };
 use ron::ser::PrettyConfig;
 
@@ -33,6 +33,7 @@ fn main() -> anyhow::Result<()> {
 
     let mut multi_library = MultiLibrary {
         libraries: HashMap::new(),
+        collection_names: HashMap::new(),
     };
 
     let manifest = std::fs::read_to_string(&opt.manifest)?;
@@ -51,19 +52,66 @@ fn main() -> anyhow::Result<()> {
             .as_array()
             .context("`printing` not array")?;
 
+        let manifest_inserts = manifest_collection["insert"]
+            .as_array()
+            .context("`insert` not array")?;
+
+        let manifest_group = manifest_collection["group"]
+            .as_str()
+            .context("`group` not array")?;
+
+        multi_library
+            .collection_names
+            .insert(manifest_group.into(), collection_name.into());
+
         let mut library = Library {
             cards: HashMap::new(),
             faces: HashMap::new(),
             inserts: HashMap::new(),
         };
 
+        for insert in manifest_inserts {
+            let insert_id = insert["id"].as_str().context("`id` not a string")?;
+            let insert_title = insert["title"].as_str().context("`title` not a string")?;
+            let insert_stripped_title = insert
+                .get("stripped_title")
+                .map(|title| title.as_str().context("`stripped_title` not a string"))
+                .unwrap_or_else(|| Ok(insert_title))?;
+            let insert_groups = insert
+                .get("insert_groups")
+                .map(|g| g.as_array().context("`insert_groups` not array"))
+                .transpose()?
+                .cloned()
+                .unwrap_or_default()
+                .into_iter()
+                .map(|group| {
+                    group
+                        .as_str()
+                        .context("`group` not a string")
+                        .map(|s| s.to_string())
+                })
+                .collect::<Result<HashSet<_>, _>>()?;
+            let insert_id = InsertId {
+                name: insert_id.to_string(),
+                print_group: manifest_group.to_string(),
+            };
+            let insert_meta = InsertMetadata {
+                title: Title {
+                    title: insert_title.into(),
+                    stripped_title: insert_stripped_title.into(),
+                },
+                id: insert_id.clone(),
+                insert_groups,
+            };
+            library
+                .inserts
+                .insert(insert_id.clone(), insert_meta.clone());
+        }
+
         for manifest_printing in manifest_printings {
             let manifest_set = manifest_printing["spec"]
                 .as_str()
                 .context("`spec` not a string")?;
-            let manifest_group = manifest_printing["group"]
-                .as_str()
-                .context("`group` not a string")?;
             let manifest_name = manifest_printing["name"]
                 .as_str()
                 .context("`name` not a string")?;
@@ -317,7 +365,7 @@ fn main() -> anyhow::Result<()> {
 
         multi_library
             .libraries
-            .insert(collection_name.into(), library);
+            .insert(manifest_group.into(), library);
     }
 
     std::fs::create_dir_all(opt.output.parent().unwrap())?;

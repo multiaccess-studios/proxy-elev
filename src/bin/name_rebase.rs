@@ -7,7 +7,7 @@ use clap::Parser;
 struct Opt {
     files: PathBuf,
     ext: String,
-    offset: u32,
+    offset: i32,
 }
 
 fn main() -> anyhow::Result<()> {
@@ -29,13 +29,13 @@ fn main() -> anyhow::Result<()> {
 
         let out_name = if let Some((num, rest)) = name.split_once('.') {
             let num = num
-                .parse::<u32>()
+                .parse::<i32>()
                 .context(format!("`{num}` not a number"))?;
             let num = num + opt.offset;
             format!("{num}.{rest}{ext}")
         } else {
             let num = name
-                .parse::<u32>()
+                .parse::<i32>()
                 .context(format!("`{name}` not a number"))?;
             let num = num + opt.offset;
             format!("{num}{ext}")
