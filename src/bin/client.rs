@@ -1,10 +1,12 @@
 use std::{
     collections::{HashMap, HashSet},
+    io::Cursor,
     sync::{Arc, Mutex},
 };
 
 use codee::{Decoder, Encoder};
 use futures::{StreamExt, stream::FuturesUnordered};
+use image::{DynamicImage, ImageReader, imageops::overlay};
 use leptos::{
     html::{Button, Dialog},
     leptos_dom::logging::{console_error, console_log, console_warn},
@@ -45,6 +47,7 @@ fn use_print_config() -> (Signal<PrintConfig>, WriteSignal<PrintConfig>) {
 pub enum OpenDialog {
     Edit(usize),
     Print,
+    TtsExport,
     JnetImport,
     NrdbImport,
 }
@@ -407,7 +410,8 @@ fn OpenDialog() -> impl IntoView {
                         OpenDialog::Print => view! { <PrintContent /> }.into_any(),
                         OpenDialog::JnetImport => view! { <JnetImportContent /> }.into_any(),
                         OpenDialog::NrdbImport => view! { <NrdbImportContent /> }.into_any(),
-                    }}                    
+                        OpenDialog::TtsExport => view! { <TtsExportContent /> }.into_any(),
+                    }}
                 </dialog>
             }.into_any()
         } else {
@@ -564,7 +568,7 @@ fn PrintContent() -> impl IntoView {
     view! {
         <div class="flex flex-col gap-2 h-full justify-between">
             <p class="text-lg font-bold">{"Print"}</p>
-            <p class="bg-red-800 text-white font-bold px-2 py-1 w-max">
+            <p class="bg-red-800 text-white font-bold px-2 py-1 max-w-max">
                 {"Remember to disable any margin when printing!"}
             </p>
             <div class="flex gap-2 items-center flex-wrap">
@@ -657,6 +661,69 @@ fn PrintContent() -> impl IntoView {
                     }
                 >
                     {print_message}
+                </button>
+            </div>
+        </div>
+    }
+}
+
+#[component]
+fn TtsExportContent() -> impl IntoView {
+    let printing = use_printing();
+    let is_printing = Memo::new(move |_| printing.get());
+    let is_not_printing = Memo::new(move |_| !is_printing.get());
+    let print_message_corp = Memo::new(move |_| {
+        if is_printing.get() {
+            "Generating..."
+        } else {
+            "Export Corp Deck"
+        }
+    });
+    let print_message_runner = Memo::new(move |_| {
+        if is_printing.get() {
+            "Generating..."
+        } else {
+            "Export Runner Deck"
+        }
+    });
+    view! {
+        <div class="flex flex-col gap-2 h-full justify-between">
+            <p class="text-lg font-bold">{"Print"}</p>
+            <p class="bg-red-800 text-white font-bold px-2 py-1 w-max">
+                <a href="https://www.google.com/search?hl=en&q=tts%20custom%20decklist%20import">
+                    {"How to import into TTS?"}
+                </a>
+            </p>
+            <p class="bg-blue-800 text-white font-bold px-2 py-1 max-w-max">
+                {"Corp Back URL: "} <code class="wrap-break-word">{CORP_TTS_BACK}</code>
+            </p>
+            <p class="bg-blue-800 text-white font-bold px-2 py-1 max-w-max">
+                {"Runner Back URL: "} <code class="wrap-break-word">{RUNNER_TTS_BACK}</code>
+            </p>
+            <div class="flex gap-2">
+                <button
+                    class="bg-green-800 hover:bg-green-600 p-2 rounded-lg cursor-pointer font-bold text-lg"
+                    class:bg-green-800=is_not_printing
+                    class:hover:bg-green-600=is_not_printing
+                    class:bg-red-800=is_printing
+                    disabled=is_printing
+                    on:click:target=move |_| {
+                        do_tts_export(CORP_TTS_BACK.to_string(), printing);
+                    }
+                >
+                    {print_message_corp}
+                </button>
+                <button
+                    class="bg-green-800 hover:bg-green-600 p-2 rounded-lg cursor-pointer font-bold text-lg"
+                    class:bg-green-800=is_not_printing
+                    class:hover:bg-green-600=is_not_printing
+                    class:bg-red-800=is_printing
+                    disabled=is_printing
+                    on:click:target=move |_| {
+                        do_tts_export(RUNNER_TTS_BACK.to_string(), printing);
+                    }
+                >
+                    {print_message_runner}
                 </button>
             </div>
         </div>
@@ -762,6 +829,14 @@ fn ControlConfig() -> impl IntoView {
                     {"Print"}
                 </button>
                 <button
+                    class="bg-green-800 hover:bg-green-600 p-2 rounded-lg cursor-pointer"
+                    on:click:target=move |_| {
+                        open_dialog.set(Some(OpenDialog::TtsExport));
+                    }
+                >
+                    {"TTS"}
+                </button>
+                <button
                     class="bg-zinc-800 hover:bg-zinc-600 p-2 rounded-lg cursor-pointer"
                     on:click:target=move |_| {
                         open_dialog.set(Some(OpenDialog::JnetImport));
@@ -788,6 +863,101 @@ fn ControlConfig() -> impl IntoView {
             </div>
         </div>
     }
+}
+
+const CORP_TTS_BACK: &str = "https://nro-public.s3.nl-ams.scw.cloud/voluntary/public-assets/custom-assets/tts_card_backs/tts_corp_back.png";
+const RUNNER_TTS_BACK: &str = "https://nro-public.s3.nl-ams.scw.cloud/voluntary/public-assets/custom-assets/tts_card_backs/tts_runner_back.png";
+
+fn do_tts_export(back: String, printing: Subfield<Store<AppState>, AppState, bool>) {
+    printing.set(true);
+    let (print_file, _) = use_print_file();
+    let print_file = print_file.read();
+
+    spawn_local(async move {
+        let files_to_download = print_file
+            .all()
+            .iter()
+            .take(69)
+            .map(FilledCardSlot::image_url)
+            .chain(std::iter::once(back.clone()))
+            .collect::<HashSet<_>>();
+        let mut downloaded_files = files_to_download
+            .into_iter()
+            .map(|url| async move {
+                let bytes = reqwest::get(&url)
+                    .await
+                    .expect("Cannot Download")
+                    .bytes()
+                    .await
+                    .expect("Cannot get bytes");
+                let image = ImageReader::new(Cursor::new(bytes))
+                    .with_guessed_format()
+                    .expect("Cannot guess format")
+                    .decode()
+                    .expect("cannot decode");
+                (url, image)
+            })
+            .collect::<FuturesUnordered<_>>()
+            .collect::<HashMap<String, DynamicImage>>()
+            .await;
+        for image in downloaded_files.values_mut() {
+            *image = image.resize_exact(405, 567, image::imageops::FilterType::CatmullRom);
+        }
+        let print_slots = print_file.all();
+        let height = (print_slots.len() as u32 + 1).div_ceil(10);
+        let mut output = DynamicImage::new(4050, height * 567, image::ColorType::Rgba8);
+        let mut row = 0;
+        let mut column = 0;
+        for (i, slot) in print_slots.iter().enumerate() {
+            column = i % 10;
+            row = i / 10;
+            let slot_image = &downloaded_files[&slot.image_url()];
+            overlay(
+                &mut output,
+                slot_image,
+                column as i64 * 405,
+                row as i64 * 567,
+            );
+        }
+        column += 1;
+        if column == 10 {
+            column = 0;
+            row += 1;
+        }
+        let back_image = &downloaded_files[&back];
+        for column in column..10 {
+            overlay(
+                &mut output,
+                back_image,
+                column as i64 * 405,
+                row as i64 * 567,
+            );
+        }
+
+        let mut output_bytes = Cursor::new(Vec::new());
+        output
+            .write_to(&mut output_bytes, image::ImageFormat::Png)
+            .expect("Cannot write to bytes");
+        let output_bytes = output_bytes.into_inner();
+        let js_bytes = Uint8Array::new_with_length(output_bytes.len() as u32);
+        js_bytes.copy_from(&output_bytes);
+        let js_array = JsValue::from(Box::new([js_bytes]) as Box<[_]>);
+        let js_bytes_blob = Blob::new_with_buffer_source_sequence(&js_array).expect("blob");
+        let link = document()
+            .create_element("a")
+            .expect("element")
+            .dyn_into::<web_sys::HtmlAnchorElement>()
+            .expect("anchor");
+        let url = Url::create_object_url_with_blob(&js_bytes_blob).expect("url");
+        link.set_href(&url);
+        link.set_download("proxies.pdf");
+        let body = document().body().expect("body");
+        let cld = body.append_child(&link).expect("append");
+        link.click();
+        body.remove_child(&cld).expect("remove");
+        Url::revoke_object_url(&url).expect("revoke");
+        printing.set(false);
+    });
 }
 
 fn do_nrdb_import(
@@ -868,7 +1038,11 @@ fn do_nrdb_import(
             };
             console_log(&format!("Importing {count} {nrdb_printing}"));
             for card in MULTI_LIBRARY.libraries["english"].cards.values() {
-                if card.printings.iter().any(|printing| printing.id == nrdb_printing) {
+                if card
+                    .printings
+                    .iter()
+                    .any(|printing| printing.id == nrdb_printing)
+                {
                     for _ in 0..count {
                         set_print_file.write().add_cards(card);
                     }

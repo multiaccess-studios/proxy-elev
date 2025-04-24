@@ -31,6 +31,16 @@ insert_groups = ["Basic Actions"]
 id = "tag_tracking_area"
 title = "Tag Tracking Area"
 
+[[collection.insert]]
+id = "turn_structure_runner"
+title = "Turn Structure: Runner"
+insert_groups = ["Turn Structure"]
+
+[[collection.insert]]
+id = "turn_structure_corp"
+title = "Turn Structure: Corp"
+insert_groups = ["Turn Structure"]
+
 [[collection.printing]]
 spec = "system_gateway"
 name = "System Gateway (English)"
