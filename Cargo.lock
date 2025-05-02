@@ -2859,6 +2859,7 @@ dependencies = [
  "base64",
  "flate2",
  "image",
+ "js-sys",
  "kuchiki",
  "lopdf",
  "rust-fontconfig",
@@ -2869,6 +2870,7 @@ dependencies = [
  "time",
  "wasm-bindgen",
  "wasm-bindgen-futures",
+ "web-sys",
  "weezl",
  "xmlparser",
 ]
@@ -2987,6 +2989,7 @@ dependencies = [
  "console_error_panic_hook",
  "futures",
  "image",
+ "js-sys",
  "leptos",
  "leptos-use",
  "nucleo-matcher",

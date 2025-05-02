@@ -20,8 +20,8 @@ use nucleo_matcher::{
     pattern::{CaseMatching, Normalization, Pattern},
 };
 use printpdf::{
-    LinePoint, Mm, Op, PaintMode, PdfDocument, PdfPage, PdfSaveOptions, Point, Polygon,
-    PolygonRing, RawImage, WindingOrder, XObjectTransform,
+    ImageCompression, ImageOptimizationOptions, LinePoint, Mm, Op, PaintMode, PdfDocument, PdfPage,
+    PdfSaveOptions, Point, Polygon, PolygonRing, RawImage, WindingOrder, XObjectTransform,
 };
 use proxy_elev::{
     AlternateFaceMetadata, BleedMode, CardFacePrintingId, CardId, CutIndicator, FilledCardSlot,
@@ -781,9 +781,6 @@ fn NrdbImportContent() -> impl IntoView {
     let (text_content, set_text_content) = signal(String::new());
     let import_status = use_import_status();
     let open_dialog = use_open_dialog();
-    Effect::new(move || {
-        console_log(&format!("{:?}", import_status.get()));
-    });
     view! {
         <p class="text-lg font-bold">{"NRDB Import"}</p>
         <p class="bg-red-800 text-white font-bold px-2 py-1 w-max">
@@ -1081,8 +1078,10 @@ fn do_print(printing: Subfield<Store<AppState>, AppState, bool>) {
                     .bytes()
                     .await
                     .expect("Cannot get bytes");
-                let image =
-                    RawImage::decode_from_bytes(&bytes, &mut vec![]).expect("cannot decode");
+                let mut errs = Vec::new();
+                let image = RawImage::decode_from_bytes_async(&bytes, &mut errs)
+                    .await
+                    .expect("cannot decode");
                 (url, image)
             })
             .collect::<FuturesUnordered<_>>()
@@ -1153,9 +1152,20 @@ fn do_print(printing: Subfield<Store<AppState>, AppState, bool>) {
             .into_iter()
             .map(|ops| PdfPage::new(Mm(page_width), Mm(page_height), ops))
             .collect();
-        let pdf_bytes = doc
-            .with_pages(pages)
-            .save(&PdfSaveOptions::default(), &mut vec![]);
+        let pdf_bytes = doc.with_pages(pages).save(
+            &PdfSaveOptions {
+                image_optimization: Some(ImageOptimizationOptions {
+                    quality: None,
+                    max_image_size: None,
+                    dither_greyscale: None,
+                    convert_to_greyscale: None,
+                    auto_optimize: None,
+                    format: Some(ImageCompression::Flate),
+                }),
+                ..PdfSaveOptions::default()
+            },
+            &mut vec![],
+        );
         let js_bytes = Uint8Array::new_with_length(pdf_bytes.len() as u32);
         js_bytes.copy_from(&pdf_bytes);
         let js_array = JsValue::from(Box::new([js_bytes]) as Box<[_]>);
