@@ -813,10 +813,23 @@ fn NrdbImportContent() -> impl IntoView {
 fn ControlConfig() -> impl IntoView {
     let open_dialog = use_open_dialog();
     let (_, set_print_file) = use_print_file();
+    let (print_file, _) = use_print_file();
+
+    let used_slots = Memo::new(move |_| print_file.read().len());
+    let total_pages = Memo::new(move |_| used_slots.get().div_ceil(9));
+    let overflow = Memo::new(move |_| {
+        let slots = used_slots.get();
+        let mut modu = slots % 9;
+        if modu == 0 && slots > 0 {
+            modu = 9;
+        }
+        modu
+    });
     view! {
         <div class="flex flex-wrap gap-2 py-2 px-4 bg-zinc-700 items-center justify-between">
             <p class="font-bold text-lg">{"Proxy.NRO"}</p>
             <div class="flex flex-wrap gap-2 items-center">
+                <p>{used_slots}{"c "}{total_pages}{"p ("}{overflow}{")"}</p>
                 <button
                     class="bg-green-800 hover:bg-green-600 p-2 rounded-lg cursor-pointer"
                     on:click:target=move |_| {
