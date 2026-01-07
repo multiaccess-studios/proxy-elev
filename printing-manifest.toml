@@ -107,3 +107,107 @@ title = "Flood the Market"
 group = "english"
 printing_id = 36053
 printing_name = "Vantage Point (English)"
+
+[[nrdb_remap]]
+from = 32001
+to = 33009
+
+[[nrdb_remap]]
+from = 32002
+to = 33018
+
+[[nrdb_remap]]
+from = 32003
+to = 33022
+
+[[nrdb_remap]]
+from = 32004
+to = 33036
+
+[[nrdb_remap]]
+from = 32005
+to = 33043
+
+[[nrdb_remap]]
+from = 32006
+to = 33056
+
+[[nrdb_remap]]
+from = 32007
+to = 33058
+
+[[nrdb_remap]]
+from = 27001
+to = 26072
+
+[[nrdb_remap]]
+from = 27002
+to = 26078
+
+[[nrdb_remap]]
+from = 27003
+to = 26091
+
+[[nrdb_remap]]
+from = 27004
+to = 26096
+
+[[nrdb_remap]]
+from = 27005
+to = 26112
+
+[[nrdb_remap]]
+from = 27006
+to = 26117
+
+[[nrdb_remap]]
+from = 27007
+to = 26127
+
+[[nrdb_remap]]
+from = 1110
+to = 30075
+
+[[nrdb_remap]]
+from = 20132
+to = 30075
+
+[[nrdb_remap]]
+from = 25146
+to = 30075
+
+[[nrdb_remap]]
+from = 1050
+to = 30030
+
+[[nrdb_remap]]
+from = 20056
+to = 30030
+
+[[nrdb_remap]]
+from = 25059
+to = 30030
+
+[[nrdb_remap]]
+from = 3009
+to = 26099
+
+[[nrdb_remap]]
+from = 13048
+to = 26124
+
+[[nrdb_remap]]
+from = 2080
+to = 26129
+
+[[nrdb_remap]]
+from = 20124
+to = 26129
+
+[[nrdb_remap]]
+from = 3046
+to = 26090
+
+[[nrdb_remap]]
+from = 3053
+to = 26094

@@ -25,6 +25,14 @@ struct Opt {
 }
 
 #[derive(Debug, Deserialize)]
+struct ManifestExtras {
+    #[serde(default)]
+    card: Vec<ExtraCard>,
+    #[serde(default)]
+    nrdb_remap: Vec<NrdbRemap>,
+}
+
+#[derive(Debug, Deserialize)]
 struct ExtraCardsFile {
     #[serde(default)]
     card: Vec<ExtraCard>,
@@ -49,6 +57,12 @@ struct ExtraCard {
 struct ExtraPrinting {
     id: u32,
     name: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct NrdbRemap {
+    from: u32,
+    to: u32,
 }
 
 fn strip_non_ascii(title: &str) -> String {
@@ -277,11 +291,12 @@ fn main() -> anyhow::Result<()> {
     let mut multi_library = MultiLibrary {
         libraries: HashMap::new(),
         collection_names: HashMap::new(),
+        nrdb_remap: HashMap::new(),
     };
 
     let manifest = std::fs::read_to_string(&opt.manifest)?;
     let manifest_table: toml::Table = toml::from_str(&manifest)?;
-    let extra_cards: ExtraCardsFile = toml::from_str(&manifest)?;
+    let extras: ManifestExtras = toml::from_str(&manifest)?;
 
     let manifest_collections = manifest_table["collection"]
         .as_array()
@@ -612,8 +627,39 @@ fn main() -> anyhow::Result<()> {
             .insert(manifest_group.into(), library);
     }
 
-    if !extra_cards.card.is_empty() {
-        merge_extra_cards(&mut multi_library, extra_cards)?;
+    if !extras.card.is_empty() {
+        merge_extra_cards(
+            &mut multi_library,
+            ExtraCardsFile {
+                card: extras.card,
+            },
+        )?;
+    }
+
+    if !extras.nrdb_remap.is_empty() {
+        let mut remap = HashMap::new();
+        for mapping in extras.nrdb_remap {
+            if remap.insert(mapping.from, mapping.to).is_some() {
+                anyhow::bail!("Duplicate NRDB remap entry for {}", mapping.from);
+            }
+        }
+        for (&from, &to) in &remap {
+            let mut found = false;
+            for library in multi_library.libraries.values() {
+                if library.faces.keys().any(|face| face.id == to) {
+                    found = true;
+                    break;
+                }
+            }
+            if !found {
+                anyhow::bail!(
+                    "NRDB remap target {} (from {}) does not exist in any library",
+                    to,
+                    from
+                );
+            }
+        }
+        multi_library.nrdb_remap = remap;
     }
 
     std::fs::create_dir_all(opt.output.parent().unwrap())?;

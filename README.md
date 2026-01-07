@@ -40,6 +40,14 @@ Notes:
 - `stripped_title` is optional; if omitted, it is derived by removing non-ASCII characters.
 - Use `printings = [{ id = 99004, name = "Preview" }]` instead of `printing_id` when you need multiple printings or per-printing names.
 
+NRDB remap example (used during NRDB import):
+
+```toml
+[[nrdb_remap]]
+from = 32003
+to = 33022
+```
+
 ## Generating Arts
 
 **Note:** To use this, you will need a source of artwork, if you are internal to NSG and have access

@@ -70,6 +70,8 @@ pub struct CardId(pub String);
 pub struct MultiLibrary {
     pub libraries: HashMap<String, Library>,
     pub collection_names: HashMap<String, String>,
+    #[serde(default)]
+    pub nrdb_remap: HashMap<u32, u32>,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]

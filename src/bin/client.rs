@@ -1046,6 +1046,11 @@ fn do_nrdb_import(
                 import_status.set(Some(ImportStatus::Failed));
                 return;
             };
+            let nrdb_printing = MULTI_LIBRARY
+                .nrdb_remap
+                .get(&nrdb_printing)
+                .copied()
+                .unwrap_or(nrdb_printing);
             console_log(&format!("Importing {count} {nrdb_printing}"));
             for card in MULTI_LIBRARY.libraries["english"].cards.values() {
                 if card
