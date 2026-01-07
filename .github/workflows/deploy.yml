@@ -10,6 +10,8 @@ jobs:
     env:
       TAILWINDCSS: ${{ github.workspace }}/tailwindcss
       TRUNK_TOOLS_TAILWINDCSS: ${{ github.workspace }}/tailwindcss
+      TRUNK_CACHE_DIR: ${{ github.workspace }}/.trunk-cache
+      TMPDIR: ${{ github.workspace }}/.tmp
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -51,7 +53,9 @@ jobs:
           cache-on-failure: true
 
       - name: Ensure trunk cache dir
-        run: mkdir -p ~/.cache/trunk
+        run: |
+          mkdir -p "${{ github.workspace }}/.trunk-cache"
+          mkdir -p "${{ github.workspace }}/.tmp"
 
       - name: Install trunk
         uses: jetli/trunk-action@v0.5.0
