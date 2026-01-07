@@ -8,8 +8,8 @@ jobs:
   build-deploy:
     runs-on: ubuntu-latest
     env:
-      TRUNK_TOOLS_TAILWINDCSS: v4.1.18
-      TRUNK_CACHE_DIR: ${{ github.workspace }}/.trunk-cache
+      TRUNK_TOOLS_TAILWINDCSS: 4.1.18
+      XDG_CACHE_HOME: ${{ github.workspace }}/.cache
       TMPDIR: ${{ github.workspace }}/.tmp
       RUST_LOG: trunk=debug
     steps:
@@ -47,8 +47,8 @@ jobs:
 
       - name: Ensure trunk cache dir
         run: |
-          mkdir -p "${{ github.workspace }}/.trunk-cache"
-          mkdir -p "${{ github.workspace }}/.tmp"
+          mkdir -p "$XDG_CACHE_HOME/trunk"
+          mkdir -p "$TMPDIR"
 
       - name: Install trunk
         uses: jetli/trunk-action@v0.5.0
@@ -70,7 +70,17 @@ jobs:
         run: cargo run --bin prepare -- ./netrunner-cards-json ./printing-manifest.toml ./src/manifest.ron
 
       - name: Build site
-        run: trunk build --release --dist publish --minify -- ./src/index.html
+        run: |
+          trunk build --release --dist publish --minify -- ./src/index.html || {
+            echo "trunk build failed; dumping diagnostics"
+            echo "XDG_CACHE_HOME=$XDG_CACHE_HOME"
+            echo "TMPDIR=$TMPDIR"
+            ls -la "$XDG_CACHE_HOME" || true
+            ls -la "$XDG_CACHE_HOME/trunk" || true
+            find "$XDG_CACHE_HOME/trunk" -maxdepth 3 -type f -printf "%p\n" | head -n 100 || true
+            ls -la "$TMPDIR" || true
+            exit 1
+          }
 
       - name: Start ssh-agent
         uses: webfactory/ssh-agent@v0.9.0
