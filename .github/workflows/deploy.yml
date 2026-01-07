@@ -37,9 +37,8 @@ jobs:
 
       - name: Install Tailwind CLI (standalone)
         run: |
-          curl -sLO https://github.com/tailwindlabs/tailwindcss/releases/download/v4.1.18/tailwindcss-linux-x64
-          chmod +x tailwindcss-linux-x64
-          mv tailwindcss-linux-x64 /usr/local/bin/tailwindcss
+          curl -sLo ./src/tailwindcss https://github.com/tailwindlabs/tailwindcss/releases/download/v4.1.18/tailwindcss-linux-x64
+          chmod +x ./src/tailwindcss
 
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
