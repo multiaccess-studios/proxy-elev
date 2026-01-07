@@ -12,6 +12,7 @@ jobs:
       TRUNK_TOOLS_TAILWINDCSS: ${{ github.workspace }}/tailwindcss
       TRUNK_CACHE_DIR: ${{ github.workspace }}/.trunk-cache
       TMPDIR: ${{ github.workspace }}/.tmp
+      RUST_LOG: trunk=debug
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -61,6 +62,17 @@ jobs:
         uses: jetli/trunk-action@v0.5.0
         with:
           version: v0.21.7
+
+      - name: Trunk diagnostics
+        run: |
+          echo "TRUNK_CACHE_DIR=$TRUNK_CACHE_DIR"
+          echo "TMPDIR=$TMPDIR"
+          echo "TAILWINDCSS=$TAILWINDCSS"
+          echo "TRUNK_TOOLS_TAILWINDCSS=$TRUNK_TOOLS_TAILWINDCSS"
+          trunk --version
+          ls -la "$TRUNK_CACHE_DIR" || true
+          ls -la "$TMPDIR" || true
+          ls -la "${{ github.workspace }}" || true
 
       - name: Prepare manifest
         run: cargo run --bin prepare -- ./netrunner-cards-json ./printing-manifest.toml ./src/manifest.ron
