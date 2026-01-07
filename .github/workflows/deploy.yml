@@ -93,4 +93,4 @@ jobs:
           ssh-keyscan -H "${{ secrets.SSH_HOST }}" >> ~/.ssh/known_hosts
 
       - name: Deploy
-        run: rsync -avz --delete publish/ "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/var/www/html/proxy.nro.run/"
+        run: rsync -avz --delete publish/ "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:./"
