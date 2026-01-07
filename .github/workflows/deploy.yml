@@ -7,11 +7,17 @@ on:
 jobs:
   build-deploy:
     runs-on: ubuntu-latest
+    env:
+      RUSTC_WRAPPER: sccache
+      SCCACHE_GHA_ENABLED: "true"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           submodules: recursive
+
+      - name: Set up sccache
+        uses: mozilla/sccache-action@v0.0.5
 
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
@@ -23,8 +29,23 @@ jobs:
         with:
           cache-on-failure: true
 
+      - name: Cache cargo bin
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/bin
+          key: cargo-bin-${{ runner.os }}-trunk-0.21.7
+
+      - name: Install cargo-binstall
+        run: |
+          if ! command -v cargo-binstall >/dev/null 2>&1; then
+            curl -LsSf https://github.com/cargo-bins/cargo-binstall/releases/latest/download/cargo-binstall-x86_64-unknown-linux-gnu.tgz | tar -xz -C ~/.cargo/bin
+          fi
+
       - name: Install trunk
-        run: cargo install trunk --locked
+        run: |
+          if ! command -v trunk >/dev/null 2>&1; then
+            cargo binstall -y trunk@0.21.7
+          fi
 
       - name: Prepare manifest
         run: cargo run --bin prepare -- ./netrunner-cards-json ./printing-manifest.toml ./src/manifest.ron
