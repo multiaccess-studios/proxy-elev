@@ -11,29 +11,11 @@ jobs:
       TRUNK_TOOLS_TAILWINDCSS: 4.1.18
       XDG_CACHE_HOME: ${{ github.workspace }}/.cache
       TMPDIR: ${{ github.workspace }}/.tmp
-      RUST_LOG: trunk=debug
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           submodules: recursive
-
-      - name: Set up sccache
-        uses: mozilla/sccache-action@v0.0.5
-        continue-on-error: true
-
-      - name: Enable sccache if available
-        run: |
-          if command -v sccache >/dev/null 2>&1; then
-            if sccache --start-server; then
-              echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
-              echo "SCCACHE_GHA_ENABLED=true" >> "$GITHUB_ENV"
-            else
-              echo "sccache server failed; continuing without sccache"
-            fi
-          else
-            echo "sccache not installed; continuing without sccache"
-          fi
 
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
@@ -55,32 +37,11 @@ jobs:
         with:
           version: v0.21.7
 
-      - name: Trunk diagnostics
-        run: |
-          echo "TRUNK_CACHE_DIR=$TRUNK_CACHE_DIR"
-          echo "TMPDIR=$TMPDIR"
-          echo "TAILWINDCSS=$TAILWINDCSS"
-          echo "TRUNK_TOOLS_TAILWINDCSS=$TRUNK_TOOLS_TAILWINDCSS"
-          trunk --version
-          ls -la "$TRUNK_CACHE_DIR" || true
-          ls -la "$TMPDIR" || true
-          ls -la "${{ github.workspace }}" || true
-
       - name: Prepare manifest
         run: cargo run --bin prepare -- ./netrunner-cards-json ./printing-manifest.toml ./src/manifest.ron
 
       - name: Build site
-        run: |
-          trunk build --release --dist publish --minify -- ./src/index.html || {
-            echo "trunk build failed; dumping diagnostics"
-            echo "XDG_CACHE_HOME=$XDG_CACHE_HOME"
-            echo "TMPDIR=$TMPDIR"
-            ls -la "$XDG_CACHE_HOME" || true
-            ls -la "$XDG_CACHE_HOME/trunk" || true
-            find "$XDG_CACHE_HOME/trunk" -maxdepth 3 -type f -printf "%p\n" | head -n 100 || true
-            ls -la "$TMPDIR" || true
-            exit 1
-          }
+        run: trunk build --release --dist publish --minify -- ./src/index.html
 
       - name: Start ssh-agent
         uses: webfactory/ssh-agent@v0.9.0
