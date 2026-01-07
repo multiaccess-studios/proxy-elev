@@ -11,6 +11,7 @@ use proxy_elev::{
     Library, MultiLibrary, PrintingMetadata, Title,
 };
 use ron::ser::PrettyConfig;
+use serde::Deserialize;
 
 /// Prepare files for NRO services.
 #[derive(Parser, Debug)]
@@ -21,6 +22,248 @@ struct Opt {
     manifest: PathBuf,
     /// Location to output the built artifact to
     output: PathBuf,
+}
+
+#[derive(Debug, Deserialize)]
+struct ExtraCardsFile {
+    #[serde(default)]
+    card: Vec<ExtraCard>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ExtraCard {
+    id: String,
+    title: String,
+    stripped_title: Option<String>,
+    group: Option<String>,
+    printing_name: Option<String>,
+    printing_id: Option<u32>,
+    #[serde(default)]
+    printings: Vec<ExtraPrinting>,
+    #[serde(default)]
+    faces: Vec<String>,
+    variants: Option<usize>,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+struct ExtraPrinting {
+    id: u32,
+    name: Option<String>,
+}
+
+fn strip_non_ascii(title: &str) -> String {
+    let stripped: String = title.chars().filter(|c| c.is_ascii()).collect();
+    if stripped.is_empty() {
+        title.to_string()
+    } else {
+        stripped
+    }
+}
+
+fn insert_printing_face(
+    library: &mut Library,
+    card_meta: &mut CardMetadata,
+    card_id: &CardId,
+    print_group: &str,
+    printing_id: u32,
+    face_or_variant_specifier: Option<usize>,
+    printing_name: &str,
+) {
+    let face = CardFacePrintingId {
+        id: printing_id,
+        face_or_variant_specifier,
+        print_group: print_group.to_string(),
+    };
+    card_meta.printings.insert(face.clone());
+    library.faces.insert(
+        face.clone(),
+        PrintingMetadata {
+            id: face,
+            card_id: card_id.clone(),
+            printing_name: printing_name.to_string(),
+        },
+    );
+}
+
+fn merge_extra_cards(
+    multi_library: &mut MultiLibrary,
+    extra_cards: ExtraCardsFile,
+) -> anyhow::Result<()> {
+    let mut extra_by_group: HashMap<String, Library> = HashMap::new();
+
+    for card in extra_cards.card {
+        let group = card.group.unwrap_or_else(|| "english".to_string());
+        if !multi_library.libraries.contains_key(&group) {
+            anyhow::bail!("Extra card group `{group}` does not exist in manifest");
+        }
+
+        if !card.faces.is_empty() && card.variants.is_some() {
+            anyhow::bail!(
+                "Extra card `{}` cannot define both `faces` and `variants`",
+                card.id
+            );
+        }
+        if let Some(variants) = card.variants {
+            if variants < 2 {
+                anyhow::bail!(
+                    "Extra card `{}` has `variants` < 2; omit it for single-face cards",
+                    card.id
+                );
+            }
+        }
+
+        if card.printing_id.is_some() && !card.printings.is_empty() {
+            anyhow::bail!(
+                "Extra card `{}` cannot define both `printing_id` and `printings`",
+                card.id
+            );
+        }
+
+        let mut printings = card.printings.clone();
+        if printings.is_empty() {
+            let printing_id = match card.printing_id {
+                Some(printing_id) => printing_id,
+                None => {
+                    anyhow::bail!(
+                        "Extra card `{}` missing `printing_id` or `printings`",
+                        card.id
+                    );
+                }
+            };
+            printings.push(ExtraPrinting {
+                id: printing_id,
+                name: card.printing_name.clone(),
+            });
+        }
+
+        let library = extra_by_group.entry(group.clone()).or_insert_with(|| Library {
+            cards: HashMap::new(),
+            faces: HashMap::new(),
+            inserts: HashMap::new(),
+        });
+
+        let stripped_title = card
+            .stripped_title
+            .clone()
+            .unwrap_or_else(|| strip_non_ascii(&card.title));
+        let title = Title {
+            title: card.title.clone(),
+            stripped_title,
+        };
+
+        let alternate_faces: Vec<Title> = card
+            .faces
+            .iter()
+            .map(|face| Title {
+                title: face.clone(),
+                stripped_title: strip_non_ascii(face),
+            })
+            .collect();
+        let alternate_face_data = if !alternate_faces.is_empty() {
+            AlternateFaceMetadata::Multiple(alternate_faces)
+        } else if let Some(variants) = card.variants {
+            AlternateFaceMetadata::Variants(variants)
+        } else {
+            AlternateFaceMetadata::Single
+        };
+
+        let card_id = CardId(card.id.clone());
+        let mut card_meta = CardMetadata {
+            title,
+            alternate_face_data,
+            id: card_id.clone(),
+            printings: BTreeSet::new(),
+        };
+
+        if let Some(existing) = multi_library.libraries[&group].cards.get(&card_id) {
+            if existing.title != card_meta.title
+                || existing.alternate_face_data != card_meta.alternate_face_data
+            {
+                anyhow::bail!(
+                    "Extra card `{}` conflicts with existing card metadata",
+                    card.id
+                );
+            }
+        }
+
+        for printing in printings {
+            let printing_name = printing
+                .name
+                .clone()
+                .or_else(|| card.printing_name.clone())
+                .unwrap_or_else(|| "Custom".to_string());
+            if !card.faces.is_empty() {
+                insert_printing_face(
+                    library,
+                    &mut card_meta,
+                    &card_id,
+                    &group,
+                    printing.id,
+                    Some(1),
+                    &printing_name,
+                );
+                for (i, _) in card.faces.iter().enumerate() {
+                    insert_printing_face(
+                        library,
+                        &mut card_meta,
+                        &card_id,
+                        &group,
+                        printing.id,
+                        Some(i + 2),
+                        &printing_name,
+                    );
+                }
+            } else if let Some(variants) = card.variants {
+                for variant in 1..=variants {
+                    insert_printing_face(
+                        library,
+                        &mut card_meta,
+                        &card_id,
+                        &group,
+                        printing.id,
+                        Some(variant),
+                        &printing_name,
+                    );
+                }
+            } else {
+                insert_printing_face(
+                    library,
+                    &mut card_meta,
+                    &card_id,
+                    &group,
+                    printing.id,
+                    None,
+                    &printing_name,
+                );
+            }
+        }
+
+        match library.cards.entry(card_id.clone()) {
+            std::collections::hash_map::Entry::Occupied(mut entry) => {
+                let existing = entry.get_mut();
+                if existing.title != card_meta.title
+                    || existing.alternate_face_data != card_meta.alternate_face_data
+                {
+                    anyhow::bail!(
+                        "Extra card `{}` redefined with different title or face metadata",
+                        card.id
+                    );
+                }
+                existing.printings.extend(card_meta.printings.into_iter());
+            }
+            std::collections::hash_map::Entry::Vacant(entry) => {
+                entry.insert(card_meta);
+            }
+        }
+    }
+
+    for (group, extra_library) in extra_by_group {
+        if let Some(library) = multi_library.libraries.get_mut(&group) {
+            library.merge(&extra_library);
+        }
+    }
+
+    Ok(())
 }
 
 #[allow(clippy::too_many_lines)]
@@ -37,9 +280,10 @@ fn main() -> anyhow::Result<()> {
     };
 
     let manifest = std::fs::read_to_string(&opt.manifest)?;
-    let manifest: toml::Table = toml::from_str(&manifest)?;
+    let manifest_table: toml::Table = toml::from_str(&manifest)?;
+    let extra_cards: ExtraCardsFile = toml::from_str(&manifest)?;
 
-    let manifest_collections = manifest["collection"]
+    let manifest_collections = manifest_table["collection"]
         .as_array()
         .context("`collection` not array")?;
 
@@ -366,6 +610,10 @@ fn main() -> anyhow::Result<()> {
         multi_library
             .libraries
             .insert(manifest_group.into(), library);
+    }
+
+    if !extra_cards.card.is_empty() {
+        merge_extra_cards(&mut multi_library, extra_cards)?;
     }
 
     std::fs::create_dir_all(opt.output.parent().unwrap())?;

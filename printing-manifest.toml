@@ -72,3 +72,38 @@ name = "The Automata Initiative (English)"
 [[collection.printing]]
 spec = "rebellion_without_rehearsal"
 name = "Rebellion Without Rehearsal (English)"
+
+[[card]]
+id = "corsair"
+title = "Corsair"
+group = "english"
+printing_id = 36004
+printing_name = "Vantage Point (English)"
+
+[[card]]
+id = "lampades"
+title = "Lampades"
+group = "english"
+printing_id = 36005
+printing_name = "Vantage Point (English)"
+
+[[card]]
+id = "underdome_irregulars"
+title = "Underdome Irregulars"
+group = "english"
+printing_id = 36016
+printing_name = "Vantage Point (English)"
+
+[[card]]
+id = "synchrocyclotron"
+title = "Synchrocyclotron"
+group = "english"
+printing_id = 36027
+printing_name = "Vantage Point (English)"
+
+[[card]]
+id = "flood_the_market"
+title = "Flood the Market"
+group = "english"
+printing_id = 36053
+printing_name = "Vantage Point (English)"

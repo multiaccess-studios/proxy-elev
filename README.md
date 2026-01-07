@@ -9,6 +9,37 @@ If you wish to regenerate the manifest, you will need the
 cargo run --bin prepare -- .\netrunner-cards-json\ .\printing-manifest.toml .\src\manifest.ron
 ```
 
+To inject preview cards not yet in netrunner-cards-json, add them directly to the manifest file.
+
+Example additions to `printing-manifest.toml`:
+
+```toml
+[[card]]
+id = "33001"
+title = "Preview Card"
+group = "english"
+printing_id = 99001
+printing_name = "Preview (English)"
+
+[[card]]
+id = "33002"
+title = "Flip Example"
+group = "english"
+printing_id = 99002
+faces = ["Flip Example (B)"]
+
+[[card]]
+id = "33003"
+title = "Variant Example"
+group = "english"
+printing_id = 99003
+variants = 3
+```
+
+Notes:
+- `stripped_title` is optional; if omitted, it is derived by removing non-ASCII characters.
+- Use `printings = [{ id = 99004, name = "Preview" }]` instead of `printing_id` when you need multiple printings or per-printing names.
+
 ## Generating Arts
 
 **Note:** To use this, you will need a source of artwork, if you are internal to NSG and have access
