@@ -43,7 +43,7 @@ jobs:
       - name: Install trunk
         uses: jetli/trunk-action@v0.5.0
         with:
-          version: 0.21.7
+          version: v0.21.7
 
       - name: Prepare manifest
         run: cargo run --bin prepare -- ./netrunner-cards-json ./printing-manifest.toml ./src/manifest.ron
