@@ -8,8 +8,7 @@ jobs:
   build-deploy:
     runs-on: ubuntu-latest
     env:
-      TAILWINDCSS: ${{ github.workspace }}/tailwindcss
-      TRUNK_TOOLS_TAILWINDCSS: ${{ github.workspace }}/tailwindcss
+      TRUNK_TOOLS_TAILWINDCSS: v4.1.18
       TRUNK_CACHE_DIR: ${{ github.workspace }}/.trunk-cache
       TMPDIR: ${{ github.workspace }}/.tmp
       RUST_LOG: trunk=debug
@@ -40,13 +39,6 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32-unknown-unknown
-
-      - name: Install Tailwind CLI (standalone)
-        run: |
-          curl -sLo ./tailwindcss https://github.com/tailwindlabs/tailwindcss/releases/download/v4.1.18/tailwindcss-linux-x64
-          chmod +x ./tailwindcss
-          ./tailwindcss --version
-          echo "${{ github.workspace }}" >> "$GITHUB_PATH"
 
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
