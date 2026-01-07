@@ -50,6 +50,9 @@ jobs:
         with:
           cache-on-failure: true
 
+      - name: Ensure trunk cache dir
+        run: mkdir -p ~/.cache/trunk
+
       - name: Install trunk
         uses: jetli/trunk-action@v0.5.0
         with:
