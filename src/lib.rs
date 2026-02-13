@@ -1,4 +1,5 @@
 use std::collections::{BTreeSet, HashMap, HashSet};
+use std::sync::RwLock;
 
 use serde::{Deserialize, Serialize};
 
@@ -72,6 +73,48 @@ pub struct MultiLibrary {
     pub collection_names: HashMap<String, String>,
     #[serde(default)]
     pub nrdb_remap: HashMap<u32, u32>,
+    #[serde(default)]
+    pub local_images: Vec<LocalImageOverride>,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]
+pub struct LocalImageOverride {
+    pub id: u32,
+    pub face_or_variant_specifier: Option<usize>,
+    pub print_group: String,
+    pub url: String,
+}
+
+impl MultiLibrary {
+    #[must_use]
+    pub fn local_image_url(&self, printing: &CardFacePrintingId) -> Option<&str> {
+        self.local_images
+            .iter()
+            .find(|override_| {
+                override_.id == printing.id
+                    && override_.print_group == printing.print_group
+                    && override_.face_or_variant_specifier == printing.face_or_variant_specifier
+            })
+            .map(|override_| override_.url.as_str())
+    }
+
+    pub fn merge_overlay(&mut self, overlay: MultiLibrary) {
+        for (group, library) in overlay.libraries {
+            match self.libraries.get_mut(&group) {
+                Some(existing) => existing.merge(&library),
+                None => {
+                    self.libraries.insert(group, library);
+                }
+            }
+        }
+        for (group, name) in overlay.collection_names {
+            self.collection_names.insert(group, name);
+        }
+        for (from, to) in overlay.nrdb_remap {
+            self.nrdb_remap.insert(from, to);
+        }
+        self.local_images.extend(overlay.local_images);
+    }
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
@@ -93,6 +136,11 @@ impl Library {
     pub fn get_face_card(&self, id: &CardFacePrintingId) -> &CardMetadata {
         let card = &self.faces[id].card_id;
         &self.cards[card]
+    }
+    #[must_use]
+    pub fn try_get_face_card(&self, id: &CardFacePrintingId) -> Option<&CardMetadata> {
+        let card_id = self.faces.get(id).map(|printing| &printing.card_id)?;
+        self.cards.get(card_id)
     }
     #[must_use]
     pub fn get_insert(&self, id: &InsertId) -> &InsertMetadata {
@@ -177,49 +225,62 @@ pub enum FilledCardSlot {
 }
 impl FilledCardSlot {
     #[must_use]
+    pub fn is_local_override(&self) -> bool {
+        match self {
+            FilledCardSlot::Card { printing } => ACTIVE_LIBRARY
+                .read()
+                .expect("library lock")
+                .local_image_url(printing)
+                .is_some(),
+            FilledCardSlot::Insert { .. } => false,
+        }
+    }
+
+    #[must_use]
     pub fn image_url(&self) -> String {
         match self {
-            FilledCardSlot::Card { printing } => printing.image_url(),
+            FilledCardSlot::Card { printing } => ACTIVE_LIBRARY
+                .read()
+                .expect("library lock")
+                .local_image_url(printing)
+                .map(str::to_string)
+                .unwrap_or_else(|| printing.image_url()),
             FilledCardSlot::Insert { insert } => insert.image_url(),
         }
     }
     #[must_use]
-    pub fn name<'a>(&self) -> &'a str {
+    pub fn name(&self) -> String {
+        let library = ACTIVE_LIBRARY.read().expect("library lock");
         match self {
-            FilledCardSlot::Card { printing } => match printing.face_or_variant_specifier {
-                None => {
-                    &MULTI_LIBRARY.libraries[&printing.print_group]
-                        .get_face_card(printing)
-                        .title
-                        .title
-                }
-                Some(n) => match n {
-                    1 => {
-                        &MULTI_LIBRARY.libraries[&printing.print_group]
-                            .get_face_card(printing)
-                            .title
-                            .title
-                    }
-                    n => match &MULTI_LIBRARY.libraries[&printing.print_group]
-                        .get_face_card(printing)
-                        .alternate_face_data
-                    {
+            FilledCardSlot::Card { printing } => {
+                let Some(card) = library
+                    .libraries
+                    .get(&printing.print_group)
+                    .and_then(|group| group.try_get_face_card(printing))
+                else {
+                    return format!("Missing card {} ({})", printing.id, printing.print_group);
+                };
+
+                match printing.face_or_variant_specifier {
+                    None | Some(1) => card.title.title.clone(),
+                    Some(n) => match &card.alternate_face_data {
                         AlternateFaceMetadata::Single | AlternateFaceMetadata::Variants(_) => {
-                            &MULTI_LIBRARY.libraries[&printing.print_group]
-                                .get_face_card(printing)
-                                .title
-                                .title
+                            card.title.title.clone()
                         }
-                        AlternateFaceMetadata::Multiple(titles) => &titles[n - 2].title,
+                        AlternateFaceMetadata::Multiple(titles) => titles
+                            .get(n.saturating_sub(2))
+                            .map_or_else(|| card.title.title.clone(), |title| title.title.clone()),
                     },
-                },
-            },
-            FilledCardSlot::Insert { insert } => {
-                &MULTI_LIBRARY.libraries[&insert.print_group]
-                    .get_insert(insert)
-                    .title
-                    .title
+                }
             }
+            FilledCardSlot::Insert { insert } => library
+                .libraries
+                .get(&insert.print_group)
+                .and_then(|group| group.inserts.get(insert))
+                .map_or_else(
+                    || format!("Missing insert {} ({})", insert.name, insert.print_group),
+                    |insert| insert.title.title.clone(),
+                ),
         }
     }
 }
@@ -263,13 +324,18 @@ impl PrintFile {
                         ref print_group,
                         ..
                     },
-            } = &slot
+                } = &slot
             {
-                if let CardMetadata {
+                if let Some(CardMetadata {
                     alternate_face_data: AlternateFaceMetadata::Variants(_),
                     id,
                     ..
-                } = MULTI_LIBRARY.libraries[print_group].get_face_card(face)
+                }) = ACTIVE_LIBRARY
+                    .read()
+                    .expect("library lock")
+                    .libraries
+                    .get(print_group)
+                    .and_then(|library| library.try_get_face_card(face))
                 {
                     let auto_faces = self.auto_faces.entry((id.clone(), variant)).or_default();
                     *auto_faces = auto_faces.saturating_sub(1);
@@ -287,11 +353,16 @@ impl PrintFile {
                     },
             } = &*slot
             {
-                if let CardMetadata {
+                if let Some(CardMetadata {
                     alternate_face_data: AlternateFaceMetadata::Variants(_),
                     id,
                     ..
-                } = MULTI_LIBRARY.libraries[&card.print_group].get_face_card(face)
+                }) = ACTIVE_LIBRARY
+                    .read()
+                    .expect("library lock")
+                    .libraries
+                    .get(&card.print_group)
+                    .and_then(|library| library.try_get_face_card(face))
                 {
                     let auto_faces = self.auto_faces.entry((id.clone(), variant)).or_default();
                     *auto_faces = auto_faces.saturating_sub(1);
@@ -363,6 +434,8 @@ impl PrintFile {
 
 pub const MANIFEST: &str = include_str!("manifest.ron");
 pub static MULTI_LIBRARY: std::sync::LazyLock<MultiLibrary> = std::sync::LazyLock::new(manifest);
+pub static ACTIVE_LIBRARY: std::sync::LazyLock<RwLock<MultiLibrary>> =
+    std::sync::LazyLock::new(|| RwLock::new(manifest()));
 
 #[allow(clippy::missing_panics_doc)]
 #[must_use]

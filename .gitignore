@@ -3,3 +3,5 @@
 /output
 /dist
 /publish
+/printing-manifest.local.toml
+/local-assets

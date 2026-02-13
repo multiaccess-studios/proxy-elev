@@ -108,6 +108,18 @@ group = "english"
 printing_id = 36053
 printing_name = "Vantage Point (English)"
 
+[[card]]
+id = "melies_u_only_the_brightest"
+title = "Méliès U: Only The Brightest"
+faces = [
+    "Tenure Floors: Méliès U",
+    "Subsurface Labs: Méliès U",
+    "Disposal Grounds: Méliès U",
+]
+group = "english"
+printing_id = 36036
+printing_name = "Vantage Point (English)"
+
 [[nrdb_remap]]
 from = 32001
 to = 33009

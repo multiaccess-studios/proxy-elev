@@ -24,14 +24,30 @@ use printpdf::{
     PdfSaveOptions, Point, Polygon, PolygonRing, RawImage, WindingOrder, XObjectTransform,
 };
 use proxy_elev::{
-    AlternateFaceMetadata, BleedMode, CardFacePrintingId, CardId, CutIndicator, FilledCardSlot,
-    InsertId, Library, MULTI_LIBRARY, PrintConfig, PrintFile, PrintSize,
+    ACTIVE_LIBRARY, AlternateFaceMetadata, BleedMode, CardFacePrintingId, CardId, CutIndicator,
+    FilledCardSlot, InsertId, Library, MultiLibrary, PrintConfig, PrintFile, PrintSize,
 };
 use reactive_stores::{Store, Subfield};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::{JsCast, JsValue};
 use web_sys::{Blob, Url, js_sys::Uint8Array};
+
+fn normalize_request_url(url: &str) -> String {
+    if url.starts_with('/') {
+        if let Some(window) = web_sys::window() {
+            if let Ok(origin) = window.location().origin() {
+                return format!("{origin}{url}");
+            }
+        }
+    }
+    url.to_string()
+}
+
+fn with_library<R>(f: impl FnOnce(&MultiLibrary) -> R) -> R {
+    let lib = ACTIVE_LIBRARY.read().expect("library lock");
+    f(&lib)
+}
 
 fn use_print_file() -> (Signal<PrintFile>, WriteSignal<PrintFile>) {
     let (get, set, _delete) = use_session_storage::<PrintFile, RonSerdeCodec>("print-set-v0");
@@ -66,6 +82,7 @@ pub struct AppState {
     printing: bool,
     import_status: Option<ImportStatus>,
     selected_library: String,
+    library_version: u32,
 }
 fn use_open_dialog() -> Subfield<Store<AppState>, AppState, Option<OpenDialog>> {
     expect_context::<Store<AppState>>().dialog()
@@ -78,6 +95,9 @@ fn use_printing() -> Subfield<Store<AppState>, AppState, bool> {
 }
 fn use_import_status() -> Subfield<Store<AppState>, AppState, Option<ImportStatus>> {
     expect_context::<Store<AppState>>().import_status()
+}
+fn use_library_version() -> Subfield<Store<AppState>, AppState, u32> {
+    expect_context::<Store<AppState>>().library_version()
 }
 
 pub struct RonSerdeCodec;
@@ -123,8 +143,8 @@ impl Default for Libraries {
                 inserts: HashMap::new(),
             },
         };
-        let lib = &MULTI_LIBRARY.libraries["english"];
-        base_state.library.merge(lib);
+        let lib = with_library(|library| library.libraries["english"].clone());
+        base_state.library.merge(&lib);
         base_state.loaded_libraries.insert("english".to_string());
         base_state
     }
@@ -137,7 +157,43 @@ fn Root() -> impl IntoView {
         printing: false,
         import_status: None,
         selected_library: "english".to_string(),
+        library_version: 0,
     }));
+    let library_version = use_library_version();
+    spawn_local(async move {
+        let urls = [
+            "/local-assets/manifest.local.ron",
+            "/manifest.local.ron",
+        ];
+        let mut overlay_text = None;
+        for url in urls {
+            let url = normalize_request_url(url);
+            let Ok(resp) = reqwest::get(&url).await else {
+                continue;
+            };
+            if !resp.status().is_success() {
+                continue;
+            }
+            let Ok(text) = resp.text().await else {
+                console_warn("Failed to read local overlay");
+                continue;
+            };
+            overlay_text = Some(text);
+            break;
+        }
+        let Some(overlay_text) = overlay_text else {
+            return;
+        };
+        let Ok(overlay) = ron::de::from_str::<MultiLibrary>(&overlay_text) else {
+            console_warn("Failed to parse local overlay");
+            return;
+        };
+        {
+            let mut lib = ACTIVE_LIBRARY.write().expect("library lock");
+            lib.merge_overlay(overlay);
+        }
+        library_version.update(|version| *version += 1);
+    });
     view! {
         <div class="bg-zinc-900 grid auto-rows-[min-content_1fr_min-content] gap-2 h-screen">
             <InputLineNew />
@@ -156,6 +212,7 @@ fn Root() -> impl IntoView {
 fn InputLineNew() -> impl IntoView {
     let (_, set_print_file) = use_print_file();
     let selected_library = use_selected_library();
+    let library_version = use_library_version();
     let mut matcher_config = nucleo_matcher::Config::DEFAULT;
     matcher_config.ignore_case = true;
     matcher_config.normalize = true;
@@ -165,11 +222,13 @@ fn InputLineNew() -> impl IntoView {
     let (input, set_input) = signal(String::new());
 
     let haystack = Memo::new(move |_| {
+        let _ = library_version.get();
         let mut haystack = Haystack {
             haystack: vec![],
             mappings: HashMap::new(),
         };
-        let library = &MULTI_LIBRARY.libraries[&selected_library.get()];
+        let library =
+            with_library(|library| library.libraries[&selected_library.get()].clone());
         for (card, meta) in &library.cards {
             haystack.haystack.push(meta.title.title.clone());
             haystack.haystack.push(meta.title.stripped_title.clone());
@@ -241,8 +300,20 @@ fn InputLineNew() -> impl IntoView {
                         key=|(i, entry)| (*i, entry.clone())
                         children=move |(i, entry)| {
                             let name = match entry {
-                                HaystackEntry::Card(card) => MULTI_LIBRARY.libraries[&selected_library.get()].get_card(&card).title.title.clone(),
-                                HaystackEntry::Insert(insert) => MULTI_LIBRARY.libraries[&selected_library.get()].get_insert(&insert).title.title.clone(),
+                                HaystackEntry::Card(card) => with_library(|library| {
+                                    library.libraries[&selected_library.get()]
+                                        .get_card(&card)
+                                        .title
+                                        .title
+                                        .clone()
+                                }),
+                                HaystackEntry::Insert(insert) => with_library(|library| {
+                                    library.libraries[&selected_library.get()]
+                                        .get_insert(&insert)
+                                        .title
+                                        .title
+                                        .clone()
+                                }),
                                 HaystackEntry::InsertGroup(group) => group.clone(),
                             };
                             let classes = if i == 0 {
@@ -256,15 +327,26 @@ fn InputLineNew() -> impl IntoView {
                                     on:click=move |_| {
                                         match &found.read()[i] {
                                             HaystackEntry::Card(card) => {
-                                                let card = MULTI_LIBRARY.libraries[&selected_library.get()].get_card(card);
-                                                set_print_file.write().add_cards(card);
+                                                let card = with_library(|library| {
+                                                    library.libraries[&selected_library.get()]
+                                                        .get_card(card)
+                                                        .clone()
+                                                });
+                                                set_print_file.write().add_cards(&card);
                                             }
                                             HaystackEntry::Insert(insert) => {
                                                 set_print_file.write().add_insert(insert.clone());
                                             }
                                             HaystackEntry::InsertGroup(group) => {
                                                 let mut set_print_file = set_print_file.write();
-                                                for insert in MULTI_LIBRARY.libraries[&selected_library.get()].inserts.values() {
+                                                let inserts = with_library(|library| {
+                                                    library.libraries[&selected_library.get()]
+                                                        .inserts
+                                                        .values()
+                                                        .cloned()
+                                                        .collect::<Vec<_>>()
+                                                });
+                                                for insert in inserts {
                                                     if insert.insert_groups.contains(group) {
                                                         set_print_file.add_insert(insert.id.clone());
                                                     }
@@ -297,15 +379,26 @@ fn InputLineNew() -> impl IntoView {
                     }
                     match &found[0] {
                         HaystackEntry::Card(card) => {
-                            let card = MULTI_LIBRARY.libraries[&selected_library.get()].get_card(card);
-                            set_print_file.write().add_cards(card);
+                            let card = with_library(|library| {
+                                library.libraries[&selected_library.get()]
+                                    .get_card(card)
+                                    .clone()
+                            });
+                            set_print_file.write().add_cards(&card);
                         }
                         HaystackEntry::Insert(insert) => {
                             set_print_file.write().add_insert(insert.clone());
                         }
                         HaystackEntry::InsertGroup(group) => {
                             let mut set_print_file = set_print_file.write();
-                            for insert in MULTI_LIBRARY.libraries[&selected_library.get()].inserts.values() {
+                            let inserts = with_library(|library| {
+                                library.libraries[&selected_library.get()]
+                                    .inserts
+                                    .values()
+                                    .cloned()
+                                    .collect::<Vec<_>>()
+                            });
+                            for insert in inserts {
                                 if insert.insert_groups.contains(group) {
                                     set_print_file.add_insert(insert.id.clone());
                                 }
@@ -363,17 +456,29 @@ fn DecklistView() -> impl IntoView {
                         open_dialog.get().is_some_and(|dialog| dialog == OpenDialog::Edit(i))
                     });
                     let name = Memo::new(move |_| card.with(|card| {
-                        card.as_ref().map(|card| card.name().to_string()).unwrap_or_default()
+                        card.as_ref().map(FilledCardSlot::name).unwrap_or_default()
                     }));
                     let image_url = Memo::new(move |_| card.with(|card| {
                         card.as_ref().map(FilledCardSlot::image_url).unwrap_or_default()
                     }));
+                    let is_local_override = Memo::new(move |_| {
+                        card.with(|card| {
+                            card.as_ref()
+                                .is_some_and(FilledCardSlot::is_local_override)
+                        })
+                    });
                     view! {
                         <button
+                            class="relative"
                             on:click:target=move |_| {
                                 open_dialog.set(Some(OpenDialog::Edit(i)));
                             }
                         >
+                            <Show when=move || is_local_override.get()>
+                                <span class="absolute top-1 right-1 z-10 text-[10px] font-bold bg-amber-500 text-black px-1 rounded">
+                                    {"LOCAL"}
+                                </span>
+                            </Show>
                             <img
                                 class:ring-4=selected
                                 class="ring-blue-800 w-24 cursor-pointer"
@@ -439,8 +544,14 @@ fn DialogContentCard() -> impl IntoView {
     let name = Memo::new(move |_| {
         card.with(|card| {
             card.as_ref()
-                .map(|card| card.name().to_string())
+                .map(FilledCardSlot::name)
                 .unwrap_or_default()
+        })
+    });
+    let is_local_override = Memo::new(move |_| {
+        card.with(|card| {
+            card.as_ref()
+                .is_some_and(FilledCardSlot::is_local_override)
         })
     });
 
@@ -456,7 +567,15 @@ fn DialogContentCard() -> impl IntoView {
         else {
             return None;
         };
-        let card_data = MULTI_LIBRARY.libraries[&*print_group].get_face_card(&face_id);
+        let Some(card_data) = with_library(|library| {
+            library
+                .libraries
+                .get(&*print_group)
+                .and_then(|group| group.try_get_face_card(&face_id))
+                .cloned()
+        }) else {
+            return None;
+        };
         let faces = match &card_data.alternate_face_data {
             AlternateFaceMetadata::Single => return None,
             AlternateFaceMetadata::Multiple(titles) => titles.len() + 1,
@@ -513,7 +632,14 @@ fn DialogContentCard() -> impl IntoView {
     move || {
         view! {
             <div class="flex justify-between items-start">
-                <p class="font-bold text-lg text-balance">{name}</p>
+                <div class="flex items-center gap-2">
+                    <p class="font-bold text-lg text-balance">{name}</p>
+                    <Show when=move || is_local_override.get()>
+                        <span class="text-[10px] font-bold bg-amber-500 text-black px-1 rounded">
+                            {"LOCAL"}
+                        </span>
+                    </Show>
+                </div>
                 <button
                     node_ref=close_ref
                     class="cursor-pointer"
@@ -759,10 +885,17 @@ fn JnetImportContent() -> impl IntoView {
                         console_warn(&format!("Invalid Number: {count}"));
                         continue;
                     };
-                    for meta in MULTI_LIBRARY.libraries["english"].cards.values() {
+                    let cards = with_library(|library| {
+                        library.libraries["english"]
+                            .cards
+                            .values()
+                            .cloned()
+                            .collect::<Vec<_>>()
+                    });
+                    for meta in cards {
                         if meta.title.title == name || meta.title.stripped_title == name {
                             for _ in 0..count {
-                                set_print_file.write().add_cards(meta);
+                                set_print_file.write().add_cards(&meta);
                             }
                             continue 'line;
                         }
@@ -894,7 +1027,8 @@ fn do_tts_export(back: String, printing: Subfield<Store<AppState>, AppState, boo
         let mut downloaded_files = files_to_download
             .into_iter()
             .map(|url| async move {
-                let bytes = reqwest::get(&url)
+                let request_url = normalize_request_url(&url);
+                let bytes = reqwest::get(&request_url)
                     .await
                     .expect("Cannot Download")
                     .bytes()
@@ -1046,20 +1180,25 @@ fn do_nrdb_import(
                 import_status.set(Some(ImportStatus::Failed));
                 return;
             };
-            let nrdb_printing = MULTI_LIBRARY
-                .nrdb_remap
-                .get(&nrdb_printing)
-                .copied()
-                .unwrap_or(nrdb_printing);
+            let nrdb_printing = with_library(|library| {
+                library
+                    .nrdb_remap
+                    .get(&nrdb_printing)
+                    .copied()
+                    .unwrap_or(nrdb_printing)
+            });
             console_log(&format!("Importing {count} {nrdb_printing}"));
-            for card in MULTI_LIBRARY.libraries["english"].cards.values() {
-                if card
-                    .printings
-                    .iter()
-                    .any(|printing| printing.id == nrdb_printing)
-                {
+            let cards = with_library(|library| {
+                library.libraries["english"]
+                    .cards
+                    .values()
+                    .cloned()
+                    .collect::<Vec<_>>()
+            });
+            for card in cards {
+                if card.printings.iter().any(|printing| printing.id == nrdb_printing) {
                     for _ in 0..count {
-                        set_print_file.write().add_cards(card);
+                        set_print_file.write().add_cards(&card);
                     }
                     continue 'nrdb_card;
                 }
@@ -1090,7 +1229,8 @@ fn do_print(printing: Subfield<Store<AppState>, AppState, bool>) {
         let downloaded_files = files_to_download
             .into_iter()
             .map(|url| async move {
-                let bytes = reqwest::get(&url)
+                let request_url = normalize_request_url(&url);
+                let bytes = reqwest::get(&request_url)
                     .await
                     .expect("Cannot Download")
                     .bytes()

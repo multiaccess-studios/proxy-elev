@@ -8,7 +8,7 @@ use anyhow::Context;
 use clap::Parser;
 use proxy_elev::{
     AlternateFaceMetadata, CardFacePrintingId, CardId, CardMetadata, InsertId, InsertMetadata,
-    Library, MultiLibrary, PrintingMetadata, Title,
+    Library, LocalImageOverride, MultiLibrary, PrintingMetadata, Title,
 };
 use ron::ser::PrettyConfig;
 use serde::Deserialize;
@@ -20,6 +20,12 @@ struct Opt {
     netrunner_cards_json: PathBuf,
     /// Manifest of the printings
     manifest: PathBuf,
+    /// Optional local-only manifest extras (overrides `printing-manifest.local.toml` if provided)
+    #[arg(long)]
+    local_manifest: Option<PathBuf>,
+    /// Optional local overlay output path (defaults to `local-assets/manifest.local.ron` when local manifest is present)
+    #[arg(long)]
+    local_output: Option<PathBuf>,
     /// Location to output the built artifact to
     output: PathBuf,
 }
@@ -30,6 +36,10 @@ struct ManifestExtras {
     card: Vec<ExtraCard>,
     #[serde(default)]
     nrdb_remap: Vec<NrdbRemap>,
+    #[serde(default)]
+    local_image: Vec<LocalImageOverrideInput>,
+    #[serde(default)]
+    local_image_root: Option<LocalImageRootInput>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -38,7 +48,7 @@ struct ExtraCardsFile {
     card: Vec<ExtraCard>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 struct ExtraCard {
     id: String,
     title: String,
@@ -63,6 +73,23 @@ struct ExtraPrinting {
 struct NrdbRemap {
     from: u32,
     to: u32,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+struct LocalImageOverrideInput {
+    id: u32,
+    #[serde(default)]
+    face: Option<usize>,
+    #[serde(default)]
+    group: Option<String>,
+    url: Option<String>,
+    path: Option<String>,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+struct LocalImageRootInput {
+    url: Option<String>,
+    path: Option<String>,
 }
 
 fn strip_non_ascii(title: &str) -> String {
@@ -99,15 +126,15 @@ fn insert_printing_face(
     );
 }
 
-fn merge_extra_cards(
-    multi_library: &mut MultiLibrary,
+fn build_extra_by_group(
+    base_library: &MultiLibrary,
     extra_cards: ExtraCardsFile,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<HashMap<String, Library>> {
     let mut extra_by_group: HashMap<String, Library> = HashMap::new();
 
     for card in extra_cards.card {
         let group = card.group.unwrap_or_else(|| "english".to_string());
-        if !multi_library.libraries.contains_key(&group) {
+        if !base_library.libraries.contains_key(&group) {
             anyhow::bail!("Extra card group `{group}` does not exist in manifest");
         }
 
@@ -189,7 +216,7 @@ fn merge_extra_cards(
             printings: BTreeSet::new(),
         };
 
-        if let Some(existing) = multi_library.libraries[&group].cards.get(&card_id) {
+        if let Some(existing) = base_library.libraries[&group].cards.get(&card_id) {
             if existing.title != card_meta.title
                 || existing.alternate_face_data != card_meta.alternate_face_data
             {
@@ -271,6 +298,15 @@ fn merge_extra_cards(
         }
     }
 
+    Ok(extra_by_group)
+}
+
+fn merge_extra_cards(
+    multi_library: &mut MultiLibrary,
+    extra_cards: ExtraCardsFile,
+) -> anyhow::Result<()> {
+    let extra_by_group = build_extra_by_group(multi_library, extra_cards)?;
+
     for (group, extra_library) in extra_by_group {
         if let Some(library) = multi_library.libraries.get_mut(&group) {
             library.merge(&extra_library);
@@ -278,6 +314,130 @@ fn merge_extra_cards(
     }
 
     Ok(())
+}
+
+fn build_local_image_overrides(
+    base_library: &MultiLibrary,
+    extras: &ManifestExtras,
+) -> anyhow::Result<Vec<LocalImageOverride>> {
+    if extras.local_image.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let root_url = extras
+        .local_image_root
+        .as_ref()
+        .and_then(|root| root.url.as_ref())
+        .cloned();
+    let root_path = extras
+        .local_image_root
+        .as_ref()
+        .and_then(|root| root.path.as_ref())
+        .cloned();
+
+    let mut overrides = Vec::with_capacity(extras.local_image.len());
+    for override_ in &extras.local_image {
+        if override_.url.is_none()
+            && override_.path.is_none()
+            && root_url.is_none()
+            && root_path.is_none()
+        {
+            anyhow::bail!(
+                "Local image override {} missing `url` or `path` and no `local_image_root`",
+                override_.id
+            );
+        }
+        if override_.url.is_some() && override_.path.is_some() {
+            anyhow::bail!(
+                "Local image override {} cannot define both `url` and `path`",
+                override_.id
+            );
+        }
+
+        let group = override_
+            .group
+            .clone()
+            .unwrap_or_else(|| "english".to_string());
+        let face = override_.face;
+
+        let matches: Vec<CardFacePrintingId> = base_library
+            .libraries
+            .get(&group)
+            .context(format!("Local image override group `{group}` missing"))?
+            .faces
+            .keys()
+            .filter(|printing| printing.id == override_.id)
+            .cloned()
+            .collect();
+
+        if matches.is_empty() {
+            anyhow::bail!(
+                "Local image override {} does not match any printings in group `{}`",
+                override_.id,
+                group
+            );
+        }
+
+        let face_specifier = if let Some(face) = face {
+            if !matches.iter().any(|printing| printing.face_or_variant_specifier == Some(face)) {
+                anyhow::bail!(
+                    "Local image override {} face {} does not exist in group `{}`",
+                    override_.id,
+                    face,
+                    group
+                );
+            }
+            Some(face)
+        } else if matches.len() == 1 {
+            matches[0].face_or_variant_specifier
+        } else {
+            anyhow::bail!(
+                "Local image override {} matches multiple faces; specify `face`",
+                override_.id
+            );
+        };
+
+        let file_name = match face_specifier {
+            Some(face) => format!("{}.{}.webp", override_.id, face),
+            None => format!("{}.webp", override_.id),
+        };
+
+        let url = if let Some(url) = override_.url.clone() {
+            url
+        } else if let Some(path) = override_.path.clone() {
+            let path = path.replace('\\', "/");
+            if path.starts_with("file://") {
+                path
+            } else {
+                format!("file:///{path}")
+            }
+        } else if let Some(root_url) = root_url.as_ref() {
+            let base = root_url.trim_end_matches('/');
+            format!("{base}/{file_name}")
+        } else {
+            let root = root_path
+                .as_ref()
+                .expect("root_path checked above")
+                .replace('\\', "/")
+                .trim_end_matches('/')
+                .to_string();
+            let path = format!("{root}/{file_name}");
+            if path.starts_with("file://") {
+                path
+            } else {
+                format!("file:///{path}")
+            }
+        };
+
+        overrides.push(LocalImageOverride {
+            id: override_.id,
+            face_or_variant_specifier: face_specifier,
+            print_group: group,
+            url,
+        });
+    }
+
+    Ok(overrides)
 }
 
 #[allow(clippy::too_many_lines)]
@@ -292,11 +452,31 @@ fn main() -> anyhow::Result<()> {
         libraries: HashMap::new(),
         collection_names: HashMap::new(),
         nrdb_remap: HashMap::new(),
+        local_images: Vec::new(),
     };
 
     let manifest = std::fs::read_to_string(&opt.manifest)?;
     let manifest_table: toml::Table = toml::from_str(&manifest)?;
     let extras: ManifestExtras = toml::from_str(&manifest)?;
+
+    let local_manifest_path = opt.local_manifest.or_else(|| {
+        let mut local = opt.manifest.clone();
+        if let Some(stem) = local.file_stem().and_then(|s| s.to_str()) {
+            local.set_file_name(format!("{stem}.local.toml"));
+            if std::fs::exists(&local).ok()? {
+                return Some(local);
+            }
+        }
+        None
+    });
+
+    let local_extras = if let Some(path) = local_manifest_path.as_ref() {
+        let local_manifest = std::fs::read_to_string(path)
+            .with_context(|| format!("Failed to read local manifest {}", path.display()))?;
+        Some(toml::from_str::<ManifestExtras>(&local_manifest)?)
+    } else {
+        None
+    };
 
     let manifest_collections = manifest_table["collection"]
         .as_array()
@@ -639,9 +819,7 @@ fn main() -> anyhow::Result<()> {
     if !extras.nrdb_remap.is_empty() {
         let mut remap = HashMap::new();
         for mapping in extras.nrdb_remap {
-            if remap.insert(mapping.from, mapping.to).is_some() {
-                anyhow::bail!("Duplicate NRDB remap entry for {}", mapping.from);
-            }
+            remap.insert(mapping.from, mapping.to);
         }
         for (&from, &to) in &remap {
             let mut found = false;
@@ -662,6 +840,78 @@ fn main() -> anyhow::Result<()> {
         multi_library.nrdb_remap = remap;
     }
 
+    let local_overlay = if let Some(local_extras) = local_extras {
+        let has_local = !local_extras.card.is_empty()
+            || !local_extras.nrdb_remap.is_empty()
+            || !local_extras.local_image.is_empty();
+        if !has_local {
+            None
+        } else {
+            let extra_by_group = build_extra_by_group(
+                &multi_library,
+                ExtraCardsFile {
+                    card: local_extras.card.clone(),
+                },
+            )?;
+
+            let mut overlay = MultiLibrary {
+                libraries: HashMap::new(),
+                collection_names: HashMap::new(),
+                nrdb_remap: HashMap::new(),
+                local_images: Vec::new(),
+            };
+
+            for (group, library) in &extra_by_group {
+                if let Some(name) = multi_library.collection_names.get(group) {
+                    overlay.collection_names.insert(group.clone(), name.clone());
+                }
+                overlay.libraries.insert(group.clone(), library.clone());
+            }
+
+            let mut validation_library = multi_library.clone();
+            for (group, library) in &overlay.libraries {
+                match validation_library.libraries.get_mut(group) {
+                    Some(existing) => existing.merge(library),
+                    None => {
+                        validation_library
+                            .libraries
+                            .insert(group.clone(), library.clone());
+                    }
+                }
+            }
+
+            if !local_extras.nrdb_remap.is_empty() {
+                let mut remap = HashMap::new();
+                for mapping in &local_extras.nrdb_remap {
+                    remap.insert(mapping.from, mapping.to);
+                }
+                for (&from, &to) in &remap {
+                    let mut found = false;
+                    for library in validation_library.libraries.values() {
+                        if library.faces.keys().any(|face| face.id == to) {
+                            found = true;
+                            break;
+                        }
+                    }
+                    if !found {
+                        anyhow::bail!(
+                            "NRDB remap target {} (from {}) does not exist in any library",
+                            to,
+                            from
+                        );
+                    }
+                }
+                overlay.nrdb_remap = remap;
+            }
+
+            overlay.local_images = build_local_image_overrides(&validation_library, &local_extras)?;
+
+            Some(overlay)
+        }
+    } else {
+        None
+    };
+
     std::fs::create_dir_all(opt.output.parent().unwrap())?;
 
     let mut write = std::fs::File::options()
@@ -672,6 +922,25 @@ fn main() -> anyhow::Result<()> {
 
     let buf = ron::ser::to_string_pretty(&multi_library, PrettyConfig::default())?;
     write.write_all(buf.as_bytes())?;
+
+    if let Some(local_overlay) = local_overlay {
+        let local_output = opt
+            .local_output
+            .clone()
+            .unwrap_or_else(|| PathBuf::from("local-assets/manifest.local.ron"));
+        if let Some(parent) = local_output.parent() {
+            if !parent.as_os_str().is_empty() {
+                std::fs::create_dir_all(parent)?;
+            }
+        }
+        let mut write = std::fs::File::options()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open(local_output)?;
+        let buf = ron::ser::to_string_pretty(&local_overlay, PrettyConfig::default())?;
+        write.write_all(buf.as_bytes())?;
+    }
 
     Ok(())
 }

@@ -10,6 +10,11 @@ cargo run --bin prepare -- .\netrunner-cards-json\ .\printing-manifest.toml .\sr
 ```
 
 To inject preview cards not yet in netrunner-cards-json, add them directly to the manifest file.
+For local-only additions, create a `printing-manifest.local.toml` next to the main manifest. It is
+auto-detected (or pass `--local-manifest path\to\file.toml`) and can contain only `[[card]]` and
+`[[nrdb_remap]]` sections, plus optional `[[local_image]]` overrides for card images. When present,
+`prepare` emits a separate runtime overlay `local-assets/manifest.local.ron` (and does not merge
+local entries into `src/manifest.ron`).
 
 Example additions to `printing-manifest.toml`:
 
@@ -47,6 +52,36 @@ NRDB remap example (used during NRDB import):
 from = 32003
 to = 33022
 ```
+
+Local image override example (for local-only assets):
+
+```toml
+[[local_image]]
+id = 36001
+group = "english"
+path = "E:\\VP Working\\webps\\36001.webp"
+```
+
+Notes:
+- `path` is converted to a `file:///` URL; you can also provide `url` directly.
+- If a printing has multiple faces or variants, specify `face = 1` (or 2, 3, ...) to select it.
+
+You can also set a root for local assets once and just list IDs:
+
+```toml
+[local_image_root]
+path = "E:\\VP Working\\webps"
+url = "/local-assets"
+
+[[local_image]]
+id = 36001
+group = "english"
+```
+
+When using `url = "/local-assets"`, the app will request `/local-assets/36001.webp`. Trunk is
+configured to copy a `local-assets` directory from the repo root, and the app will also look for
+`/local-assets/manifest.local.ron` at runtime. Create a directory junction or symlink named
+`local-assets` that points to your real asset folder.
 
 ## Generating Arts
 
