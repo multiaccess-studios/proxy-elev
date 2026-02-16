@@ -1,5 +1,5 @@
 use std::{
-    collections::{BTreeSet, HashMap, HashSet},
+    collections::{BTreeMap, BTreeSet, HashMap, HashSet},
     io::Write,
     path::PathBuf,
 };
@@ -11,7 +11,7 @@ use proxy_elev::{
     Library, LocalImageOverride, MultiLibrary, PrintingMetadata, Title,
 };
 use ron::ser::PrettyConfig;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 /// Prepare files for NRO services.
 #[derive(Parser, Debug)]
@@ -90,6 +90,92 @@ struct LocalImageOverrideInput {
 struct LocalImageRootInput {
     url: Option<String>,
     path: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+struct StableMultiLibrary {
+    libraries: BTreeMap<String, StableLibrary>,
+    collection_names: BTreeMap<String, String>,
+    nrdb_remap: BTreeMap<u32, u32>,
+    local_images: Vec<LocalImageOverride>,
+}
+
+#[derive(Debug, Serialize)]
+struct StableLibrary {
+    cards: BTreeMap<CardId, CardMetadata>,
+    faces: BTreeMap<CardFacePrintingId, PrintingMetadata>,
+    inserts: BTreeMap<InsertId, StableInsertMetadata>,
+}
+
+#[derive(Debug, Serialize)]
+struct StableInsertMetadata {
+    title: Title,
+    id: InsertId,
+    insert_groups: BTreeSet<String>,
+}
+
+impl From<&InsertMetadata> for StableInsertMetadata {
+    fn from(value: &InsertMetadata) -> Self {
+        Self {
+            title: value.title.clone(),
+            id: value.id.clone(),
+            insert_groups: value.insert_groups.iter().cloned().collect(),
+        }
+    }
+}
+
+impl From<&Library> for StableLibrary {
+    fn from(value: &Library) -> Self {
+        Self {
+            cards: value
+                .cards
+                .iter()
+                .map(|(k, v)| (k.clone(), v.clone()))
+                .collect(),
+            faces: value
+                .faces
+                .iter()
+                .map(|(k, v)| (k.clone(), v.clone()))
+                .collect(),
+            inserts: value
+                .inserts
+                .iter()
+                .map(|(k, v)| (k.clone(), StableInsertMetadata::from(v)))
+                .collect(),
+        }
+    }
+}
+
+impl From<&MultiLibrary> for StableMultiLibrary {
+    fn from(value: &MultiLibrary) -> Self {
+        let mut local_images = value.local_images.clone();
+        local_images.sort_by(|a, b| {
+            a.print_group
+                .cmp(&b.print_group)
+                .then_with(|| a.id.cmp(&b.id))
+                .then_with(|| a.face_or_variant_specifier.cmp(&b.face_or_variant_specifier))
+                .then_with(|| a.url.cmp(&b.url))
+        });
+
+        Self {
+            libraries: value
+                .libraries
+                .iter()
+                .map(|(k, v)| (k.clone(), StableLibrary::from(v)))
+                .collect(),
+            collection_names: value
+                .collection_names
+                .iter()
+                .map(|(k, v)| (k.clone(), v.clone()))
+                .collect(),
+            nrdb_remap: value
+                .nrdb_remap
+                .iter()
+                .map(|(k, v)| (*k, *v))
+                .collect(),
+            local_images,
+        }
+    }
 }
 
 fn strip_non_ascii(title: &str) -> String {
@@ -920,7 +1006,8 @@ fn main() -> anyhow::Result<()> {
         .truncate(true)
         .open(opt.output)?;
 
-    let buf = ron::ser::to_string_pretty(&multi_library, PrettyConfig::default())?;
+    let stable_manifest = StableMultiLibrary::from(&multi_library);
+    let buf = ron::ser::to_string_pretty(&stable_manifest, PrettyConfig::default())?;
     write.write_all(buf.as_bytes())?;
 
     if let Some(local_overlay) = local_overlay {
@@ -938,7 +1025,8 @@ fn main() -> anyhow::Result<()> {
             .create(true)
             .truncate(true)
             .open(local_output)?;
-        let buf = ron::ser::to_string_pretty(&local_overlay, PrettyConfig::default())?;
+        let stable_overlay = StableMultiLibrary::from(&local_overlay);
+        let buf = ron::ser::to_string_pretty(&stable_overlay, PrettyConfig::default())?;
         write.write_all(buf.as_bytes())?;
     }
 
