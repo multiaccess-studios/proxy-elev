@@ -157,6 +157,21 @@ group = "english"
 printing_id = 36017
 printing_name = "Vantage Point (English)"
 
+[[card]]
+id = "let_them_dream"
+title = "Let Them Dream"
+group = "english"
+printing_id = 36066
+printing_name = "Vantage Point (English)"
+
+[[card]]
+id = "melies_city_luxury_line"
+title = "Méliès City Luxury Line"
+stripped_title = "Melies City Luxury Line"
+group = "english"
+printing_id = 36026
+printing_name = "Vantage Point (English)"
+
 [[nrdb_remap]]
 from = 32001
 to = 33009

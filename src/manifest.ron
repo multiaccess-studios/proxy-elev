@@ -3977,6 +3977,21 @@
                         ),
                     ],
                 ),
+                ("let_them_dream"): (
+                    title: (
+                        title: "Let Them Dream",
+                        stripped_title: "Let Them Dream",
+                    ),
+                    alternate_face_data: Single,
+                    id: ("let_them_dream"),
+                    printings: [
+                        (
+                            id: 36066,
+                            face_or_variant_specifier: None,
+                            print_group: "english",
+                        ),
+                    ],
+                ),
                 ("letheia_nisei"): (
                     title: (
                         title: "Letheia Nisei",
@@ -4522,6 +4537,21 @@
                     printings: [
                         (
                             id: 26096,
+                            face_or_variant_specifier: None,
+                            print_group: "english",
+                        ),
+                    ],
+                ),
+                ("melies_city_luxury_line"): (
+                    title: (
+                        title: "Méliès City Luxury Line",
+                        stripped_title: "Melies City Luxury Line",
+                    ),
+                    alternate_face_data: Single,
+                    id: ("melies_city_luxury_line"),
+                    printings: [
+                        (
+                            id: 36026,
                             face_or_variant_specifier: None,
                             print_group: "english",
                         ),
@@ -15761,6 +15791,19 @@
                     printing_name: "Vantage Point (English)",
                 ),
                 (
+                    id: 36026,
+                    face_or_variant_specifier: None,
+                    print_group: "english",
+                ): (
+                    id: (
+                        id: 36026,
+                        face_or_variant_specifier: None,
+                        print_group: "english",
+                    ),
+                    card_id: ("melies_city_luxury_line"),
+                    printing_name: "Vantage Point (English)",
+                ),
+                (
                     id: 36027,
                     face_or_variant_specifier: None,
                     print_group: "english",
@@ -15875,6 +15918,19 @@
                         print_group: "english",
                     ),
                     card_id: ("vulture_fund"),
+                    printing_name: "Vantage Point (English)",
+                ),
+                (
+                    id: 36066,
+                    face_or_variant_specifier: None,
+                    print_group: "english",
+                ): (
+                    id: (
+                        id: 36066,
+                        face_or_variant_specifier: None,
+                        print_group: "english",
+                    ),
+                    card_id: ("let_them_dream"),
                     printing_name: "Vantage Point (English)",
                 ),
             },
