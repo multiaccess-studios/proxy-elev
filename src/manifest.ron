@@ -6995,6 +6995,21 @@
                         ),
                     ],
                 ),
+                ("stick_and_poke"): (
+                    title: (
+                        title: "Stick and Poke",
+                        stripped_title: "Stick and Poke",
+                    ),
+                    alternate_face_data: Single,
+                    id: ("stick_and_poke"),
+                    printings: [
+                        (
+                            id: 36008,
+                            face_or_variant_specifier: None,
+                            print_group: "english",
+                        ),
+                    ],
+                ),
                 ("sting"): (
                     title: (
                         title: "Sting!",
@@ -15749,6 +15764,19 @@
                         print_group: "english",
                     ),
                     card_id: ("lampades"),
+                    printing_name: "Vantage Point (English)",
+                ),
+                (
+                    id: 36008,
+                    face_or_variant_specifier: None,
+                    print_group: "english",
+                ): (
+                    id: (
+                        id: 36008,
+                        face_or_variant_specifier: None,
+                        print_group: "english",
+                    ),
+                    card_id: ("stick_and_poke"),
                     printing_name: "Vantage Point (English)",
                 ),
                 (

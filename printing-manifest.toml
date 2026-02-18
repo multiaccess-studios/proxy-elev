@@ -172,6 +172,13 @@ group = "english"
 printing_id = 36026
 printing_name = "Vantage Point (English)"
 
+[[card]]
+id = "stick_and_poke"
+title = "Stick and Poke"
+group = "english"
+printing_id = 36008
+printing_name = "Vantage Point (English)"
+
 [[nrdb_remap]]
 from = 32001
 to = 33009
