@@ -2632,6 +2632,21 @@
                         ),
                     ],
                 ),
+                ("flagship"): (
+                    title: (
+                        title: "Flagship",
+                        stripped_title: "Flagship",
+                    ),
+                    alternate_face_data: Single,
+                    id: ("flagship"),
+                    printings: [
+                        (
+                            id: 36064,
+                            face_or_variant_specifier: None,
+                            print_group: "english",
+                        ),
+                    ],
+                ),
                 ("flip_switch"): (
                     title: (
                         title: "Flip Switch",
@@ -4227,6 +4242,21 @@
                     printings: [
                         (
                             id: 35024,
+                            face_or_variant_specifier: None,
+                            print_group: "english",
+                        ),
+                    ],
+                ),
+                ("magistrate_revontulet"): (
+                    title: (
+                        title: "Magistrate Revontulet",
+                        stripped_title: "Magistrate Revontulet",
+                    ),
+                    alternate_face_data: Single,
+                    id: ("magistrate_revontulet"),
+                    printings: [
+                        (
+                            id: 36048,
                             face_or_variant_specifier: None,
                             print_group: "english",
                         ),
@@ -15910,6 +15940,19 @@
                     printing_name: "Vantage Point (English)",
                 ),
                 (
+                    id: 36048,
+                    face_or_variant_specifier: None,
+                    print_group: "english",
+                ): (
+                    id: (
+                        id: 36048,
+                        face_or_variant_specifier: None,
+                        print_group: "english",
+                    ),
+                    card_id: ("magistrate_revontulet"),
+                    printing_name: "Vantage Point (English)",
+                ),
+                (
                     id: 36049,
                     face_or_variant_specifier: None,
                     print_group: "english",
@@ -15946,6 +15989,19 @@
                         print_group: "english",
                     ),
                     card_id: ("vulture_fund"),
+                    printing_name: "Vantage Point (English)",
+                ),
+                (
+                    id: 36064,
+                    face_or_variant_specifier: None,
+                    print_group: "english",
+                ): (
+                    id: (
+                        id: 36064,
+                        face_or_variant_specifier: None,
+                        print_group: "english",
+                    ),
+                    card_id: ("flagship"),
                     printing_name: "Vantage Point (English)",
                 ),
                 (

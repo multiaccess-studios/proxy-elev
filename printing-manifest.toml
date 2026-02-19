@@ -179,6 +179,20 @@ group = "english"
 printing_id = 36008
 printing_name = "Vantage Point (English)"
 
+[[card]]
+id = "flagship"
+title = "Flagship"
+group = "english"
+printing_id = 36064
+printing_name = "Vantage Point (English)"
+
+[[card]]
+id = "magistrate_revontulet"
+title = "Magistrate Revontulet"
+group = "english"
+printing_id = 36048
+printing_name = "Vantage Point (English)"
+
 [[nrdb_remap]]
 from = 32001
 to = 33009
