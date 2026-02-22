@@ -842,6 +842,21 @@
                         ),
                     ],
                 ),
+                ("beta_build"): (
+                    title: (
+                        title: "Beta Build",
+                        stripped_title: "Beta Build",
+                    ),
+                    alternate_face_data: Single,
+                    id: ("beta_build"),
+                    printings: [
+                        (
+                            id: 36019,
+                            face_or_variant_specifier: None,
+                            print_group: "english",
+                        ),
+                    ],
+                ),
                 ("biawak"): (
                     title: (
                         title: "Biawak",
@@ -987,6 +1002,21 @@
                     printings: [
                         (
                             id: 26075,
+                            face_or_variant_specifier: None,
+                            print_group: "english",
+                        ),
+                    ],
+                ),
+                ("borrowed_goods"): (
+                    title: (
+                        title: "Borrowed Goods",
+                        stripped_title: "Borrowed Goods",
+                    ),
+                    alternate_face_data: Single,
+                    id: ("borrowed_goods"),
+                    printings: [
+                        (
+                            id: 36013,
                             face_or_variant_specifier: None,
                             print_group: "english",
                         ),
@@ -2512,6 +2542,21 @@
                         ),
                     ],
                 ),
+                ("event_horizon"): (
+                    title: (
+                        title: "Event Horizon",
+                        stripped_title: "Event Horizon",
+                    ),
+                    alternate_face_data: Single,
+                    id: ("event_horizon"),
+                    printings: [
+                        (
+                            id: 36058,
+                            face_or_variant_specifier: None,
+                            print_group: "english",
+                        ),
+                    ],
+                ),
                 ("extract"): (
                     title: (
                         title: "Extract",
@@ -2717,6 +2762,21 @@
                     printings: [
                         (
                             id: 35079,
+                            face_or_variant_specifier: None,
+                            print_group: "english",
+                        ),
+                    ],
+                ),
+                ("flywheel"): (
+                    title: (
+                        title: "Flywheel",
+                        stripped_title: "Flywheel",
+                    ),
+                    alternate_face_data: Single,
+                    id: ("flywheel"),
+                    printings: [
+                        (
+                            id: 36059,
                             face_or_variant_specifier: None,
                             print_group: "english",
                         ),
@@ -3857,6 +3917,21 @@
                         ),
                     ],
                 ),
+                ("kompromat"): (
+                    title: (
+                        title: "Kompromat",
+                        stripped_title: "Kompromat",
+                    ),
+                    alternate_face_data: Single,
+                    id: ("kompromat"),
+                    printings: [
+                        (
+                            id: 36010,
+                            face_or_variant_specifier: None,
+                            print_group: "english",
+                        ),
+                    ],
+                ),
                 ("konjin"): (
                     title: (
                         title: "Konjin",
@@ -4900,6 +4975,21 @@
                         ),
                     ],
                 ),
+                ("myoshu"): (
+                    title: (
+                        title: "Myōshu",
+                        stripped_title: "Myoshu",
+                    ),
+                    alternate_face_data: Single,
+                    id: ("myoshu"),
+                    printings: [
+                        (
+                            id: 36061,
+                            face_or_variant_specifier: None,
+                            print_group: "english",
+                        ),
+                    ],
+                ),
                 ("mystic_maemi"): (
                     title: (
                         title: "Mystic Maemi",
@@ -5490,6 +5580,21 @@
                     printings: [
                         (
                             id: 26092,
+                            face_or_variant_specifier: None,
+                            print_group: "english",
+                        ),
+                    ],
+                ),
+                ("paywall"): (
+                    title: (
+                        title: "Paywall",
+                        stripped_title: "Paywall",
+                    ),
+                    alternate_face_data: Single,
+                    id: ("paywall"),
+                    printings: [
+                        (
+                            id: 36052,
                             face_or_variant_specifier: None,
                             print_group: "english",
                         ),
@@ -7100,6 +7205,21 @@
                         ),
                     ],
                 ),
+                ("stowaway"): (
+                    title: (
+                        title: "Stowaway",
+                        stripped_title: "Stowaway",
+                    ),
+                    alternate_face_data: Single,
+                    id: ("stowaway"),
+                    printings: [
+                        (
+                            id: 36024,
+                            face_or_variant_specifier: None,
+                            print_group: "english",
+                        ),
+                    ],
+                ),
                 ("strike_fund"): (
                     title: (
                         title: "Strike Fund",
@@ -7290,6 +7410,21 @@
                     printings: [
                         (
                             id: 30031,
+                            face_or_variant_specifier: None,
+                            print_group: "english",
+                        ),
+                    ],
+                ),
+                ("tailgate"): (
+                    title: (
+                        title: "Tailgate",
+                        stripped_title: "Tailgate",
+                    ),
+                    alternate_face_data: Single,
+                    id: ("tailgate"),
+                    printings: [
+                        (
+                            id: 36012,
                             face_or_variant_specifier: None,
                             print_group: "english",
                         ),
@@ -8430,6 +8565,21 @@
                     printings: [
                         (
                             id: 34077,
+                            face_or_variant_specifier: None,
+                            print_group: "english",
+                        ),
+                    ],
+                ),
+                ("witch_hunt"): (
+                    title: (
+                        title: "Witch Hunt",
+                        stripped_title: "Witch Hunt",
+                    ),
+                    alternate_face_data: Single,
+                    id: ("witch_hunt"),
+                    printings: [
+                        (
+                            id: 36047,
                             face_or_variant_specifier: None,
                             print_group: "english",
                         ),
@@ -15823,6 +15973,45 @@
                     printing_name: "Vantage Point (English)",
                 ),
                 (
+                    id: 36010,
+                    face_or_variant_specifier: None,
+                    print_group: "english",
+                ): (
+                    id: (
+                        id: 36010,
+                        face_or_variant_specifier: None,
+                        print_group: "english",
+                    ),
+                    card_id: ("kompromat"),
+                    printing_name: "Vantage Point (English)",
+                ),
+                (
+                    id: 36012,
+                    face_or_variant_specifier: None,
+                    print_group: "english",
+                ): (
+                    id: (
+                        id: 36012,
+                        face_or_variant_specifier: None,
+                        print_group: "english",
+                    ),
+                    card_id: ("tailgate"),
+                    printing_name: "Vantage Point (English)",
+                ),
+                (
+                    id: 36013,
+                    face_or_variant_specifier: None,
+                    print_group: "english",
+                ): (
+                    id: (
+                        id: 36013,
+                        face_or_variant_specifier: None,
+                        print_group: "english",
+                    ),
+                    card_id: ("borrowed_goods"),
+                    printing_name: "Vantage Point (English)",
+                ),
+                (
                     id: 36016,
                     face_or_variant_specifier: None,
                     print_group: "english",
@@ -15846,6 +16035,32 @@
                         print_group: "english",
                     ),
                     card_id: ("hiram_0mission_svensson_shadow_of_the_past"),
+                    printing_name: "Vantage Point (English)",
+                ),
+                (
+                    id: 36019,
+                    face_or_variant_specifier: None,
+                    print_group: "english",
+                ): (
+                    id: (
+                        id: 36019,
+                        face_or_variant_specifier: None,
+                        print_group: "english",
+                    ),
+                    card_id: ("beta_build"),
+                    printing_name: "Vantage Point (English)",
+                ),
+                (
+                    id: 36024,
+                    face_or_variant_specifier: None,
+                    print_group: "english",
+                ): (
+                    id: (
+                        id: 36024,
+                        face_or_variant_specifier: None,
+                        print_group: "english",
+                    ),
+                    card_id: ("stowaway"),
                     printing_name: "Vantage Point (English)",
                 ),
                 (
@@ -15940,6 +16155,19 @@
                     printing_name: "Vantage Point (English)",
                 ),
                 (
+                    id: 36047,
+                    face_or_variant_specifier: None,
+                    print_group: "english",
+                ): (
+                    id: (
+                        id: 36047,
+                        face_or_variant_specifier: None,
+                        print_group: "english",
+                    ),
+                    card_id: ("witch_hunt"),
+                    printing_name: "Vantage Point (English)",
+                ),
+                (
                     id: 36048,
                     face_or_variant_specifier: None,
                     print_group: "english",
@@ -15966,6 +16194,19 @@
                     printing_name: "Vantage Point (English)",
                 ),
                 (
+                    id: 36052,
+                    face_or_variant_specifier: None,
+                    print_group: "english",
+                ): (
+                    id: (
+                        id: 36052,
+                        face_or_variant_specifier: None,
+                        print_group: "english",
+                    ),
+                    card_id: ("paywall"),
+                    printing_name: "Vantage Point (English)",
+                ),
+                (
                     id: 36053,
                     face_or_variant_specifier: None,
                     print_group: "english",
@@ -15976,6 +16217,45 @@
                         print_group: "english",
                     ),
                     card_id: ("flood_the_market"),
+                    printing_name: "Vantage Point (English)",
+                ),
+                (
+                    id: 36058,
+                    face_or_variant_specifier: None,
+                    print_group: "english",
+                ): (
+                    id: (
+                        id: 36058,
+                        face_or_variant_specifier: None,
+                        print_group: "english",
+                    ),
+                    card_id: ("event_horizon"),
+                    printing_name: "Vantage Point (English)",
+                ),
+                (
+                    id: 36059,
+                    face_or_variant_specifier: None,
+                    print_group: "english",
+                ): (
+                    id: (
+                        id: 36059,
+                        face_or_variant_specifier: None,
+                        print_group: "english",
+                    ),
+                    card_id: ("flywheel"),
+                    printing_name: "Vantage Point (English)",
+                ),
+                (
+                    id: 36061,
+                    face_or_variant_specifier: None,
+                    print_group: "english",
+                ): (
+                    id: (
+                        id: 36061,
+                        face_or_variant_specifier: None,
+                        print_group: "english",
+                    ),
+                    card_id: ("myoshu"),
                     printing_name: "Vantage Point (English)",
                 ),
                 (

@@ -193,6 +193,77 @@ group = "english"
 printing_id = 36048
 printing_name = "Vantage Point (English)"
 
+[[card]]
+id = "paywall"
+title = "Paywall"
+group = "english"
+printing_id = 36052
+printing_name = "Vantage Point (English)"
+
+[[card]]
+id = "witch_hunt"
+title = "Witch Hunt"
+group = "english"
+printing_id = 36047
+printing_name = "Vantage Point (English)"
+
+[[card]]
+id = "tailgate"
+title = "Tailgate"
+group = "english"
+printing_id = 36012
+printing_name = "Vantage Point (English)"
+
+[[card]]
+id = "kompromat"
+title = "Kompromat"
+group = "english"
+printing_id = 36010
+printing_name = "Vantage Point (English)"
+
+[[card]]
+id = "stowaway"
+title = "Stowaway"
+group = "english"
+printing_id = 36024
+printing_name = "Vantage Point (English)"
+
+[[card]]
+id = "event_horizon"
+title = "Event Horizon"
+group = "english"
+printing_id = 36058
+printing_name = "Vantage Point (English)"
+
+[[card]]
+id = "myoshu"
+title = "Myōshu"
+stripped_title = "Myoshu"
+group = "english"
+printing_id = 36061
+printing_name = "Vantage Point (English)"
+
+[[card]]
+id = "flywheel"
+title = "Flywheel"
+group = "english"
+printing_id = 36059
+printing_name = "Vantage Point (English)"
+
+[[card]]
+id = "beta_build"
+title = "Beta Build"
+group = "english"
+printing_id = 36019
+printing_name = "Vantage Point (English)"
+
+[[card]]
+id = "borrowed_goods"
+title = "Borrowed Goods"
+group = "english"
+printing_id = 36013
+printing_name = "Vantage Point (English)"
+
 [[nrdb_remap]]
 from = 32001
 to = 33009

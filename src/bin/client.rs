@@ -440,6 +440,7 @@ fn InputLineNew() -> impl IntoView {
 fn DecklistView() -> impl IntoView {
     let (print_file, _) = use_print_file();
     let open_dialog = use_open_dialog();
+    let library_version = use_library_version();
     let num_items = Memo::new(move |_| print_file.with(PrintFile::len));
     view! {
         <div class="flex flex-wrap gap-2 justify-center">
@@ -456,12 +457,15 @@ fn DecklistView() -> impl IntoView {
                         open_dialog.get().is_some_and(|dialog| dialog == OpenDialog::Edit(i))
                     });
                     let name = Memo::new(move |_| card.with(|card| {
+                        let _ = library_version.get();
                         card.as_ref().map(FilledCardSlot::name).unwrap_or_default()
                     }));
                     let image_url = Memo::new(move |_| card.with(|card| {
+                        let _ = library_version.get();
                         card.as_ref().map(FilledCardSlot::image_url).unwrap_or_default()
                     }));
                     let is_local_override = Memo::new(move |_| {
+                        let _ = library_version.get();
                         card.with(|card| {
                             card.as_ref()
                                 .is_some_and(FilledCardSlot::is_local_override)
@@ -530,6 +534,7 @@ fn DialogContentCard() -> impl IntoView {
     let open_dialog = use_open_dialog();
     let (print_file, _) = use_print_file();
     let (_, set_print_file) = use_print_file();
+    let library_version = use_library_version();
 
     let card = Memo::new(move |_| {
         let print_index = open_dialog.get();
@@ -542,6 +547,7 @@ fn DialogContentCard() -> impl IntoView {
     });
 
     let name = Memo::new(move |_| {
+        let _ = library_version.get();
         card.with(|card| {
             card.as_ref()
                 .map(FilledCardSlot::name)
@@ -549,6 +555,7 @@ fn DialogContentCard() -> impl IntoView {
         })
     });
     let is_local_override = Memo::new(move |_| {
+        let _ = library_version.get();
         card.with(|card| {
             card.as_ref()
                 .is_some_and(FilledCardSlot::is_local_override)
@@ -556,6 +563,7 @@ fn DialogContentCard() -> impl IntoView {
     });
 
     let face_info = Memo::new(move |_| {
+        let _ = library_version.get();
         let Some(FilledCardSlot::Card {
             printing:
                 ref face_id @ CardFacePrintingId {
