@@ -264,6 +264,182 @@ group = "english"
 printing_id = 36013
 printing_name = "Vantage Point (English)"
 
+[[card]]
+id = "chain_reaction"
+title = "Chain Reaction"
+group = "english"
+printing_id = 36001
+printing_name = "Vantage Point (English)"
+
+[[card]]
+id = "take_a_dive"
+title = "Take a Dive"
+group = "english"
+printing_id = 36002
+printing_name = "Vantage Point (English)"
+
+[[card]]
+id = "the_tungsten_tailor"
+title = "The Tungsten Tailor"
+group = "english"
+printing_id = 36003
+printing_name = "Vantage Point (English)"
+
+[[card]]
+id = "hackerspace"
+title = "Hackerspace"
+group = "english"
+printing_id = 36006
+printing_name = "Vantage Point (English)"
+
+[[card]]
+id = "rotary"
+title = "Rotary"
+group = "english"
+printing_id = 36014
+printing_name = "Vantage Point (English)"
+
+[[card]]
+id = "baker"
+title = "Baker"
+group = "english"
+printing_id = 36015
+printing_name = "Vantage Point (English)"
+
+[[card]]
+id = "aircheck"
+title = "Aircheck"
+group = "english"
+printing_id = 36018
+printing_name = "Vantage Point (English)"
+
+[[card]]
+id = "methuselah"
+title = "Methuselah"
+group = "english"
+printing_id = 36020
+printing_name = "Vantage Point (English)"
+
+[[card]]
+id = "touchstone"
+title = "Touchstone"
+group = "english"
+printing_id = 36021
+printing_name = "Vantage Point (English)"
+
+[[card]]
+id = "read_write_share"
+title = "Read-Write Share"
+group = "english"
+printing_id = 36022
+printing_name = "Vantage Point (English)"
+
+[[card]]
+id = "ansel_2_0"
+title = "Ansel 2.0"
+group = "english"
+printing_id = 36028
+printing_name = "Vantage Point (English)"
+
+[[card]]
+id = "reverb"
+title = "Reverb"
+group = "english"
+printing_id = 36029
+printing_name = "Vantage Point (English)"
+
+
+[[card]]
+id = "vertigo"
+title = "Vertigo"
+group = "english"
+printing_id = 36031
+printing_name = "Vantage Point (English)"
+
+[[card]]
+id = "realloc"
+title = "realloc()"
+group = "english"
+printing_id = 36033
+printing_name = "Vantage Point (English)"
+
+[[card]]
+id = "retirement_plan"
+title = "Retirement Plan"
+group = "english"
+printing_id = 36034
+printing_name = "Vantage Point (English)"
+
+[[card]]
+id = "perfect_recall"
+title = "Perfect Recall"
+group = "english"
+printing_id = 36035
+printing_name = "Vantage Point (English)"
+
+[[card]]
+id = "esca"
+title = "Esca"
+group = "english"
+printing_id = 36038
+printing_name = "Vantage Point (English)"
+
+[[card]]
+id = "ezam"
+title = "ezaM"
+group = "english"
+printing_id = 36039
+printing_name = "Vantage Point (English)"
+
+[[card]]
+id = "knowledge_seeker"
+title = "Knowledge Seeker"
+group = "english"
+printing_id = 36040
+printing_name = "Vantage Point (English)"
+
+[[card]]
+id = "vicsek"
+title = "Vicsek"
+group = "english"
+printing_id = 36042
+printing_name = "Vantage Point (English)"
+
+[[card]]
+id = "unleash"
+title = "Unleash"
+group = "english"
+printing_id = 36044
+printing_name = "Vantage Point (English)"
+
+[[card]]
+id = "the_red_room"
+title = "The Red Room"
+group = "english"
+printing_id = 36045
+printing_name = "Vantage Point (English)"
+
+[[card]]
+id = "grubber"
+title = "Grubber"
+group = "english"
+printing_id = 36050
+printing_name = "Vantage Point (English)"
+
+[[card]]
+id = "hype_machine"
+title = "Hype Machine"
+group = "english"
+printing_id = 36055
+printing_name = "Vantage Point (English)"
+
+[[card]]
+id = "tocsin"
+title = "Tocsin"
+group = "english"
+printing_id = 36060
+printing_name = "Vantage Point (English)"
+
 [[nrdb_remap]]
 from = 32001
 to = 33009
