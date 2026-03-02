@@ -1412,6 +1412,21 @@
                         ),
                     ],
                 ),
+                ("caveat_emptor"): (
+                    title: (
+                        title: "Caveat Emptor",
+                        stripped_title: "Caveat Emptor",
+                    ),
+                    alternate_face_data: Single,
+                    id: ("caveat_emptor"),
+                    printings: [
+                        (
+                            id: 36032,
+                            face_or_variant_specifier: None,
+                            print_group: "english",
+                        ),
+                    ],
+                ),
                 ("cayambe_grid"): (
                     title: (
                         title: "Cayambe Grid",
@@ -1857,6 +1872,21 @@
                     printings: [
                         (
                             id: 26064,
+                            face_or_variant_specifier: None,
+                            print_group: "english",
+                        ),
+                    ],
+                ),
+                ("cultivate"): (
+                    title: (
+                        title: "Cultivate",
+                        stripped_title: "Cultivate",
+                    ),
+                    alternate_face_data: Single,
+                    id: ("cultivate"),
+                    printings: [
+                        (
+                            id: 36043,
                             face_or_variant_specifier: None,
                             print_group: "english",
                         ),
@@ -4232,6 +4262,21 @@
                         ),
                     ],
                 ),
+                ("lethe"): (
+                    title: (
+                        title: "Lethe",
+                        stripped_title: "Lethe",
+                    ),
+                    alternate_face_data: Single,
+                    id: ("lethe"),
+                    printings: [
+                        (
+                            id: 36051,
+                            face_or_variant_specifier: None,
+                            print_group: "english",
+                        ),
+                    ],
+                ),
                 ("letheia_nisei"): (
                     title: (
                         title: "Letheia Nisei",
@@ -4307,6 +4352,21 @@
                         ),
                     ],
                 ),
+                ("lionsmane"): (
+                    title: (
+                        title: "Lionsmane",
+                        stripped_title: "Lionsmane",
+                    ),
+                    alternate_face_data: Single,
+                    id: ("lionsmane"),
+                    printings: [
+                        (
+                            id: 36041,
+                            face_or_variant_specifier: None,
+                            print_group: "english",
+                        ),
+                    ],
+                ),
                 ("living_mural"): (
                     title: (
                         title: "Living Mural",
@@ -4377,6 +4437,36 @@
                     printings: [
                         (
                             id: 26051,
+                            face_or_variant_specifier: None,
+                            print_group: "english",
+                        ),
+                    ],
+                ),
+                ("lotus_haze"): (
+                    title: (
+                        title: "Lotus Haze",
+                        stripped_title: "Lotus Haze",
+                    ),
+                    alternate_face_data: Single,
+                    id: ("lotus_haze"),
+                    printings: [
+                        (
+                            id: 36037,
+                            face_or_variant_specifier: None,
+                            print_group: "english",
+                        ),
+                    ],
+                ),
+                ("luana_campos"): (
+                    title: (
+                        title: "Luana Campos",
+                        stripped_title: "Luana Campos",
+                    ),
+                    alternate_face_data: Single,
+                    id: ("luana_campos"),
+                    printings: [
+                        (
+                            id: 36057,
                             face_or_variant_specifier: None,
                             print_group: "english",
                         ),
@@ -4814,21 +4904,21 @@
                 ),
                 ("melies_u_only_the_brightest"): (
                     title: (
-                        title: "Méliès U: Only The Brightest",
-                        stripped_title: "Mlis U: Only The Brightest",
+                        title: "Méliès U: Only the Brightest",
+                        stripped_title: "Melies U: Only the Brightest",
                     ),
                     alternate_face_data: Multiple([
                         (
                             title: "Tenure Floors: Méliès U",
-                            stripped_title: "Tenure Floors: Mlis U",
+                            stripped_title: "Tenure Floors: Melies U",
                         ),
                         (
                             title: "Subsurface Labs: Méliès U",
-                            stripped_title: "Subsurface Labs: Mlis U",
+                            stripped_title: "Subsurface Labs: Melies U",
                         ),
                         (
                             title: "Disposal Grounds: Méliès U",
-                            stripped_title: "Disposal Grounds: Mlis U",
+                            stripped_title: "Disposal Grounds: Melies U",
                         ),
                     ]),
                     id: ("melies_u_only_the_brightest"),
@@ -5460,6 +5550,21 @@
                     printings: [
                         (
                             id: 33073,
+                            face_or_variant_specifier: None,
+                            print_group: "english",
+                        ),
+                    ],
+                ),
+                ("nurse_hanh"): (
+                    title: (
+                        title: "Nurse Hạnh",
+                        stripped_title: "Nurse Hanh",
+                    ),
+                    alternate_face_data: Single,
+                    id: ("nurse_hanh"),
+                    printings: [
+                        (
+                            id: 36007,
                             face_or_variant_specifier: None,
                             print_group: "english",
                         ),
@@ -6380,6 +6485,21 @@
                         ),
                     ],
                 ),
+                ("reanimation_protocol"): (
+                    title: (
+                        title: "Reanimation Protocol",
+                        stripped_title: "Reanimation Protocol",
+                    ),
+                    alternate_face_data: Single,
+                    id: ("reanimation_protocol"),
+                    printings: [
+                        (
+                            id: 36062,
+                            face_or_variant_specifier: None,
+                            print_group: "english",
+                        ),
+                    ],
+                ),
                 ("reaper_function"): (
                     title: (
                         title: "Reaper Function",
@@ -6800,6 +6920,21 @@
                         ),
                     ],
                 ),
+                ("sacrifice_zone_expansion"): (
+                    title: (
+                        title: "Sacrifice Zone Expansion",
+                        stripped_title: "Sacrifice Zone Expansion",
+                    ),
+                    alternate_face_data: Single,
+                    id: ("sacrifice_zone_expansion"),
+                    printings: [
+                        (
+                            id: 36056,
+                            face_or_variant_specifier: None,
+                            print_group: "english",
+                        ),
+                    ],
+                ),
                 ("saisentan"): (
                     title: (
                         title: "Saisentan",
@@ -6855,6 +6990,21 @@
                     printings: [
                         (
                             id: 35020,
+                            face_or_variant_specifier: None,
+                            print_group: "english",
+                        ),
+                    ],
+                ),
+                ("scapegoat"): (
+                    title: (
+                        title: "Scapegoat",
+                        stripped_title: "Scapegoat",
+                    ),
+                    alternate_face_data: Single,
+                    id: ("scapegoat"),
+                    printings: [
+                        (
+                            id: 36054,
                             face_or_variant_specifier: None,
                             print_group: "english",
                         ),
@@ -6995,6 +7145,21 @@
                         ),
                     ],
                 ),
+                ("sell_out"): (
+                    title: (
+                        title: "Sell Out",
+                        stripped_title: "Sell Out",
+                    ),
+                    alternate_face_data: Single,
+                    id: ("sell_out"),
+                    printings: [
+                        (
+                            id: 36011,
+                            face_or_variant_specifier: None,
+                            print_group: "english",
+                        ),
+                    ],
+                ),
                 ("semak_samun"): (
                     title: (
                         title: "Semak-samun",
@@ -7050,6 +7215,21 @@
                     printings: [
                         (
                             id: 35049,
+                            face_or_variant_specifier: None,
+                            print_group: "english",
+                        ),
+                    ],
+                ),
+                ("shackleton_grid"): (
+                    title: (
+                        title: "Shackleton Grid",
+                        stripped_title: "Shackleton Grid",
+                    ),
+                    alternate_face_data: Single,
+                    id: ("shackleton_grid"),
+                    printings: [
+                        (
+                            id: 36065,
                             face_or_variant_specifier: None,
                             print_group: "english",
                         ),
@@ -7145,6 +7325,21 @@
                         ),
                     ],
                 ),
+                ("sipa"): (
+                    title: (
+                        title: "Sipa",
+                        stripped_title: "Sipa",
+                    ),
+                    alternate_face_data: Single,
+                    id: ("sipa"),
+                    printings: [
+                        (
+                            id: 36023,
+                            face_or_variant_specifier: None,
+                            print_group: "english",
+                        ),
+                    ],
+                ),
                 ("sisyphus_protocol"): (
                     title: (
                         title: "Sisyphus Protocol",
@@ -7185,6 +7380,21 @@
                     printings: [
                         (
                             id: 34057,
+                            face_or_variant_specifier: None,
+                            print_group: "english",
+                        ),
+                    ],
+                ),
+                ("sleipnir"): (
+                    title: (
+                        title: "Sleipnir",
+                        stripped_title: "Sleipnir",
+                    ),
+                    alternate_face_data: Single,
+                    id: ("sleipnir"),
+                    printings: [
+                        (
+                            id: 36030,
                             face_or_variant_specifier: None,
                             print_group: "english",
                         ),
@@ -8660,13 +8870,13 @@
                         ),
                     ],
                 ),
-                ("virtual_intelligence_pi_you_can_call_me_vic"): (
+                ("virtual_intelligence_p_i_you_can_call_me_vic"): (
                     title: (
                         title: "Virtual Intelligence, P.I.: “You Can Call Me Vic”",
                         stripped_title: "Virtual Intelligence, P.I.: \"You Can Call Me Vic\"",
                     ),
                     alternate_face_data: Single,
-                    id: ("virtual_intelligence_pi_you_can_call_me_vic"),
+                    id: ("virtual_intelligence_p_i_you_can_call_me_vic"),
                     printings: [
                         (
                             id: 36009,
@@ -8955,6 +9165,21 @@
                     printings: [
                         (
                             id: 36047,
+                            face_or_variant_specifier: None,
+                            print_group: "english",
+                        ),
+                    ],
+                ),
+                ("word_on_the_street"): (
+                    title: (
+                        title: "Word on the Street",
+                        stripped_title: "Word on the Street",
+                    ),
+                    alternate_face_data: Single,
+                    id: ("word_on_the_street"),
+                    printings: [
+                        (
+                            id: 36025,
                             face_or_variant_specifier: None,
                             print_group: "english",
                         ),
@@ -16374,6 +16599,19 @@
                     printing_name: "Vantage Point (English)",
                 ),
                 (
+                    id: 36007,
+                    face_or_variant_specifier: None,
+                    print_group: "english",
+                ): (
+                    id: (
+                        id: 36007,
+                        face_or_variant_specifier: None,
+                        print_group: "english",
+                    ),
+                    card_id: ("nurse_hanh"),
+                    printing_name: "Vantage Point (English)",
+                ),
+                (
                     id: 36008,
                     face_or_variant_specifier: None,
                     print_group: "english",
@@ -16396,7 +16634,7 @@
                         face_or_variant_specifier: None,
                         print_group: "english",
                     ),
-                    card_id: ("virtual_intelligence_pi_you_can_call_me_vic"),
+                    card_id: ("virtual_intelligence_p_i_you_can_call_me_vic"),
                     printing_name: "Vantage Point (English)",
                 ),
                 (
@@ -16410,6 +16648,19 @@
                         print_group: "english",
                     ),
                     card_id: ("kompromat"),
+                    printing_name: "Vantage Point (English)",
+                ),
+                (
+                    id: 36011,
+                    face_or_variant_specifier: None,
+                    print_group: "english",
+                ): (
+                    id: (
+                        id: 36011,
+                        face_or_variant_specifier: None,
+                        print_group: "english",
+                    ),
+                    card_id: ("sell_out"),
                     printing_name: "Vantage Point (English)",
                 ),
                 (
@@ -16556,6 +16807,19 @@
                     printing_name: "Vantage Point (English)",
                 ),
                 (
+                    id: 36023,
+                    face_or_variant_specifier: None,
+                    print_group: "english",
+                ): (
+                    id: (
+                        id: 36023,
+                        face_or_variant_specifier: None,
+                        print_group: "english",
+                    ),
+                    card_id: ("sipa"),
+                    printing_name: "Vantage Point (English)",
+                ),
+                (
                     id: 36024,
                     face_or_variant_specifier: None,
                     print_group: "english",
@@ -16566,6 +16830,19 @@
                         print_group: "english",
                     ),
                     card_id: ("stowaway"),
+                    printing_name: "Vantage Point (English)",
+                ),
+                (
+                    id: 36025,
+                    face_or_variant_specifier: None,
+                    print_group: "english",
+                ): (
+                    id: (
+                        id: 36025,
+                        face_or_variant_specifier: None,
+                        print_group: "english",
+                    ),
+                    card_id: ("word_on_the_street"),
                     printing_name: "Vantage Point (English)",
                 ),
                 (
@@ -16621,6 +16898,19 @@
                     printing_name: "Vantage Point (English)",
                 ),
                 (
+                    id: 36030,
+                    face_or_variant_specifier: None,
+                    print_group: "english",
+                ): (
+                    id: (
+                        id: 36030,
+                        face_or_variant_specifier: None,
+                        print_group: "english",
+                    ),
+                    card_id: ("sleipnir"),
+                    printing_name: "Vantage Point (English)",
+                ),
+                (
                     id: 36031,
                     face_or_variant_specifier: None,
                     print_group: "english",
@@ -16631,6 +16921,19 @@
                         print_group: "english",
                     ),
                     card_id: ("vertigo"),
+                    printing_name: "Vantage Point (English)",
+                ),
+                (
+                    id: 36032,
+                    face_or_variant_specifier: None,
+                    print_group: "english",
+                ): (
+                    id: (
+                        id: 36032,
+                        face_or_variant_specifier: None,
+                        print_group: "english",
+                    ),
+                    card_id: ("caveat_emptor"),
                     printing_name: "Vantage Point (English)",
                 ),
                 (
@@ -16725,6 +17028,19 @@
                     printing_name: "Vantage Point (English)",
                 ),
                 (
+                    id: 36037,
+                    face_or_variant_specifier: None,
+                    print_group: "english",
+                ): (
+                    id: (
+                        id: 36037,
+                        face_or_variant_specifier: None,
+                        print_group: "english",
+                    ),
+                    card_id: ("lotus_haze"),
+                    printing_name: "Vantage Point (English)",
+                ),
+                (
                     id: 36038,
                     face_or_variant_specifier: None,
                     print_group: "english",
@@ -16764,6 +17080,19 @@
                     printing_name: "Vantage Point (English)",
                 ),
                 (
+                    id: 36041,
+                    face_or_variant_specifier: None,
+                    print_group: "english",
+                ): (
+                    id: (
+                        id: 36041,
+                        face_or_variant_specifier: None,
+                        print_group: "english",
+                    ),
+                    card_id: ("lionsmane"),
+                    printing_name: "Vantage Point (English)",
+                ),
+                (
                     id: 36042,
                     face_or_variant_specifier: None,
                     print_group: "english",
@@ -16774,6 +17103,19 @@
                         print_group: "english",
                     ),
                     card_id: ("vicsek"),
+                    printing_name: "Vantage Point (English)",
+                ),
+                (
+                    id: 36043,
+                    face_or_variant_specifier: None,
+                    print_group: "english",
+                ): (
+                    id: (
+                        id: 36043,
+                        face_or_variant_specifier: None,
+                        print_group: "english",
+                    ),
+                    card_id: ("cultivate"),
                     printing_name: "Vantage Point (English)",
                 ),
                 (
@@ -16868,6 +17210,19 @@
                     printing_name: "Vantage Point (English)",
                 ),
                 (
+                    id: 36051,
+                    face_or_variant_specifier: None,
+                    print_group: "english",
+                ): (
+                    id: (
+                        id: 36051,
+                        face_or_variant_specifier: None,
+                        print_group: "english",
+                    ),
+                    card_id: ("lethe"),
+                    printing_name: "Vantage Point (English)",
+                ),
+                (
                     id: 36052,
                     face_or_variant_specifier: None,
                     print_group: "english",
@@ -16894,6 +17249,19 @@
                     printing_name: "Vantage Point (English)",
                 ),
                 (
+                    id: 36054,
+                    face_or_variant_specifier: None,
+                    print_group: "english",
+                ): (
+                    id: (
+                        id: 36054,
+                        face_or_variant_specifier: None,
+                        print_group: "english",
+                    ),
+                    card_id: ("scapegoat"),
+                    printing_name: "Vantage Point (English)",
+                ),
+                (
                     id: 36055,
                     face_or_variant_specifier: None,
                     print_group: "english",
@@ -16904,6 +17272,32 @@
                         print_group: "english",
                     ),
                     card_id: ("hype_machine"),
+                    printing_name: "Vantage Point (English)",
+                ),
+                (
+                    id: 36056,
+                    face_or_variant_specifier: None,
+                    print_group: "english",
+                ): (
+                    id: (
+                        id: 36056,
+                        face_or_variant_specifier: None,
+                        print_group: "english",
+                    ),
+                    card_id: ("sacrifice_zone_expansion"),
+                    printing_name: "Vantage Point (English)",
+                ),
+                (
+                    id: 36057,
+                    face_or_variant_specifier: None,
+                    print_group: "english",
+                ): (
+                    id: (
+                        id: 36057,
+                        face_or_variant_specifier: None,
+                        print_group: "english",
+                    ),
+                    card_id: ("luana_campos"),
                     printing_name: "Vantage Point (English)",
                 ),
                 (
@@ -16959,6 +17353,19 @@
                     printing_name: "Vantage Point (English)",
                 ),
                 (
+                    id: 36062,
+                    face_or_variant_specifier: None,
+                    print_group: "english",
+                ): (
+                    id: (
+                        id: 36062,
+                        face_or_variant_specifier: None,
+                        print_group: "english",
+                    ),
+                    card_id: ("reanimation_protocol"),
+                    printing_name: "Vantage Point (English)",
+                ),
+                (
                     id: 36063,
                     face_or_variant_specifier: None,
                     print_group: "english",
@@ -16982,6 +17389,19 @@
                         print_group: "english",
                     ),
                     card_id: ("flagship"),
+                    printing_name: "Vantage Point (English)",
+                ),
+                (
+                    id: 36065,
+                    face_or_variant_specifier: None,
+                    print_group: "english",
+                ): (
+                    id: (
+                        id: 36065,
+                        face_or_variant_specifier: None,
+                        print_group: "english",
+                    ),
+                    card_id: ("shackleton_grid"),
                     printing_name: "Vantage Point (English)",
                 ),
                 (
