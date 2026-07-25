@@ -324,7 +324,7 @@ impl PrintFile {
                         ref print_group,
                         ..
                     },
-                } = &slot
+            } = &slot
             {
                 if let Some(CardMetadata {
                     alternate_face_data: AlternateFaceMetadata::Variants(_),
