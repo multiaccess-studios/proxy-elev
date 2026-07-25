@@ -1,5 +1,17 @@
 # NRO Proxy Service
 
+## Development
+
+```bash
+nix develop
+nix flake check
+nix run .#check
+nix run .#build
+```
+
+Merges to `main` deploy the generated `publish/` directory to the production
+Object Storage bucket from the `llb-rdev` runner.
+
 ## Regenerating Manifest
 
 If you wish to regenerate the manifest, you will need the

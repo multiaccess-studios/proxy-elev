@@ -6,3 +6,7 @@
 /printing-manifest.local.toml
 /local-assets/*
 !/local-assets/.gitkeep
+/.cache
+/.tmp
+/result
+/result-*

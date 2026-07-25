@@ -153,7 +153,10 @@ impl From<&MultiLibrary> for StableMultiLibrary {
             a.print_group
                 .cmp(&b.print_group)
                 .then_with(|| a.id.cmp(&b.id))
-                .then_with(|| a.face_or_variant_specifier.cmp(&b.face_or_variant_specifier))
+                .then_with(|| {
+                    a.face_or_variant_specifier
+                        .cmp(&b.face_or_variant_specifier)
+                })
                 .then_with(|| a.url.cmp(&b.url))
         });
 
@@ -168,11 +171,7 @@ impl From<&MultiLibrary> for StableMultiLibrary {
                 .iter()
                 .map(|(k, v)| (k.clone(), v.clone()))
                 .collect(),
-            nrdb_remap: value
-                .nrdb_remap
-                .iter()
-                .map(|(k, v)| (*k, *v))
-                .collect(),
+            nrdb_remap: value.nrdb_remap.iter().map(|(k, v)| (*k, *v)).collect(),
             local_images,
         }
     }
@@ -263,11 +262,13 @@ fn build_extra_by_group(
             });
         }
 
-        let library = extra_by_group.entry(group.clone()).or_insert_with(|| Library {
-            cards: HashMap::new(),
-            faces: HashMap::new(),
-            inserts: HashMap::new(),
-        });
+        let library = extra_by_group
+            .entry(group.clone())
+            .or_insert_with(|| Library {
+                cards: HashMap::new(),
+                faces: HashMap::new(),
+                inserts: HashMap::new(),
+            });
 
         let stripped_title = card
             .stripped_title
@@ -465,7 +466,10 @@ fn build_local_image_overrides(
         }
 
         let face_specifier = if let Some(face) = face {
-            if !matches.iter().any(|printing| printing.face_or_variant_specifier == Some(face)) {
+            if !matches
+                .iter()
+                .any(|printing| printing.face_or_variant_specifier == Some(face))
+            {
                 anyhow::bail!(
                     "Local image override {} face {} does not exist in group `{}`",
                     override_.id,
@@ -894,12 +898,7 @@ fn main() -> anyhow::Result<()> {
     }
 
     if !extras.card.is_empty() {
-        merge_extra_cards(
-            &mut multi_library,
-            ExtraCardsFile {
-                card: extras.card,
-            },
-        )?;
+        merge_extra_cards(&mut multi_library, ExtraCardsFile { card: extras.card })?;
     }
 
     if !extras.nrdb_remap.is_empty() {

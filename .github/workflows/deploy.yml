@@ -1,57 +1,29 @@
-name: Deploy
+name: Deploy production
 
 on:
   push:
-    branches: ["main"]
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: proxy-production
+  cancel-in-progress: false
 
 jobs:
-  build-deploy:
-    runs-on: ubuntu-latest
+  deploy:
+    runs-on: [self-hosted, Linux, X64, llb-rdev]
+    timeout-minutes: 30
+    environment: production
     env:
-      TRUNK_TOOLS_TAILWINDCSS: 4.1.18
-      XDG_CACHE_HOME: ${{ github.workspace }}/.cache
-      TMPDIR: ${{ github.workspace }}/.tmp
+      SCW_ACCESS_KEY: ${{ secrets.SCW_ACCESS_KEY }}
+      SCW_SECRET_KEY: ${{ secrets.SCW_SECRET_KEY }}
+      SCW_PROJECT_ID: ${{ vars.SCW_PROJECT_ID }}
+      S3_BUCKET: ${{ vars.S3_BUCKET }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           submodules: recursive
-
-      - name: Set up Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: wasm32-unknown-unknown
-
-      - name: Cache cargo
-        uses: Swatinem/rust-cache@v2
-        with:
-          cache-on-failure: true
-
-      - name: Ensure trunk cache dir
-        run: |
-          mkdir -p "$XDG_CACHE_HOME/trunk"
-          mkdir -p "$TMPDIR"
-
-      - name: Install trunk
-        uses: jetli/trunk-action@v0.5.0
-        with:
-          version: v0.21.7
-
-      - name: Prepare manifest
-        run: cargo run --bin prepare -- ./netrunner-cards-json ./printing-manifest.toml ./src/manifest.ron
-
-      - name: Build site
-        run: trunk build --release --dist publish --minify -- ./src/index.html
-
-      - name: Start ssh-agent
-        uses: webfactory/ssh-agent@v0.9.0
-        with:
-          ssh-private-key: ${{ secrets.SSH_KEY }}
-
-      - name: Add known hosts
-        run: |
-          mkdir -p ~/.ssh
-          ssh-keyscan -H "${{ secrets.SSH_HOST }}" >> ~/.ssh/known_hosts
-
-      - name: Deploy
-        run: rsync -avz --delete publish/ "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:./"
+      - run: nix flake check
+      - run: nix run .#deploy

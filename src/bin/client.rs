@@ -161,10 +161,7 @@ fn Root() -> impl IntoView {
     }));
     let library_version = use_library_version();
     spawn_local(async move {
-        let urls = [
-            "/local-assets/manifest.local.ron",
-            "/manifest.local.ron",
-        ];
+        let urls = ["/local-assets/manifest.local.ron", "/manifest.local.ron"];
         let mut overlay_text = None;
         for url in urls {
             let url = normalize_request_url(url);
@@ -227,8 +224,7 @@ fn InputLineNew() -> impl IntoView {
             haystack: vec![],
             mappings: HashMap::new(),
         };
-        let library =
-            with_library(|library| library.libraries[&selected_library.get()].clone());
+        let library = with_library(|library| library.libraries[&selected_library.get()].clone());
         for (card, meta) in &library.cards {
             haystack.haystack.push(meta.title.title.clone());
             haystack.haystack.push(meta.title.stripped_title.clone());
@@ -548,18 +544,11 @@ fn DialogContentCard() -> impl IntoView {
 
     let name = Memo::new(move |_| {
         let _ = library_version.get();
-        card.with(|card| {
-            card.as_ref()
-                .map(FilledCardSlot::name)
-                .unwrap_or_default()
-        })
+        card.with(|card| card.as_ref().map(FilledCardSlot::name).unwrap_or_default())
     });
     let is_local_override = Memo::new(move |_| {
         let _ = library_version.get();
-        card.with(|card| {
-            card.as_ref()
-                .is_some_and(FilledCardSlot::is_local_override)
-        })
+        card.with(|card| card.as_ref().is_some_and(FilledCardSlot::is_local_override))
     });
 
     let face_info = Memo::new(move |_| {
@@ -1204,7 +1193,11 @@ fn do_nrdb_import(
                     .collect::<Vec<_>>()
             });
             for card in cards {
-                if card.printings.iter().any(|printing| printing.id == nrdb_printing) {
+                if card
+                    .printings
+                    .iter()
+                    .any(|printing| printing.id == nrdb_printing)
+                {
                     for _ in 0..count {
                         set_print_file.write().add_cards(&card);
                     }
