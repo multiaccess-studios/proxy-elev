@@ -14,10 +14,10 @@ Object Storage bucket from the `llb-rdev` runner.
 
 ## Published card assets
 
-At startup, the browser reads the public card asset catalogue and overlays released official NSG
-`proxy-square-v1` WebPs onto the bundled card library. Cards absent from the catalogue, catalogue
-errors, and unsupported entries retain the legacy image URL automatically. A local runtime overlay
-loads afterwards and takes precedence over both sources.
+At startup, the browser reads the public card asset catalogue into a dedicated published-asset
+index. Released official NSG cards and inserts use its `proxy-square-v1` WebPs. Cards absent from
+the catalogue, catalogue errors, and unsupported entries retain the legacy image URL. A genuine
+local runtime override loads afterwards and remains the highest-priority source.
 
 The default catalogue is:
 

@@ -24,9 +24,9 @@ use printpdf::{
     PdfSaveOptions, Point, Polygon, PolygonRing, RawImage, WindingOrder, XObjectTransform,
 };
 use proxy_elev::{
-    ACTIVE_LIBRARY, AlternateFaceMetadata, BleedMode, CARD_ASSET_CATALOG_URL, CardFacePrintingId,
-    CardId, CutIndicator, FilledCardSlot, InsertId, Library, MultiLibrary, PrintConfig, PrintFile,
-    PrintSize, published_card_image_overrides,
+    ACTIVE_LIBRARY, ACTIVE_PUBLISHED_ASSETS, AlternateFaceMetadata, BleedMode,
+    CARD_ASSET_CATALOG_URL, CardFacePrintingId, CardId, CutIndicator, FilledCardSlot, InsertId,
+    Library, MultiLibrary, PrintConfig, PrintFile, PrintSize, published_asset_index,
 };
 use reactive_stores::{Store, Subfield};
 use regex::Regex;
@@ -50,7 +50,7 @@ fn with_library<R>(f: impl FnOnce(&MultiLibrary) -> R) -> R {
     f(&lib)
 }
 
-async fn load_published_card_images() -> bool {
+async fn load_published_assets() -> bool {
     let url = normalize_request_url(CARD_ASSET_CATALOG_URL);
     let Ok(response) = reqwest::get(&url).await else {
         console_warn("Failed to fetch the public card asset catalog; using legacy images");
@@ -64,10 +64,10 @@ async fn load_published_card_images() -> bool {
         console_warn("Failed to read the public card asset catalog; using legacy images");
         return false;
     };
-    let overrides = {
+    let published = {
         let library = ACTIVE_LIBRARY.read().expect("library lock");
-        match published_card_image_overrides(&text, &library) {
-            Ok(overrides) => overrides,
+        match published_asset_index(&text, &library) {
+            Ok(published) => published,
             Err(error) => {
                 console_warn(&format!(
                     "Failed to parse the public card asset catalog; using legacy images: {error}"
@@ -76,19 +76,12 @@ async fn load_published_card_images() -> bool {
             }
         }
     };
-    if overrides.is_empty() {
+    if published.is_empty() {
         return false;
     }
-    let overlay = MultiLibrary {
-        libraries: HashMap::new(),
-        collection_names: HashMap::new(),
-        nrdb_remap: HashMap::new(),
-        local_images: overrides,
-    };
-    ACTIVE_LIBRARY
+    *ACTIVE_PUBLISHED_ASSETS
         .write()
-        .expect("library lock")
-        .merge_overlay(overlay);
+        .expect("published asset lock") = published;
     true
 }
 
@@ -236,7 +229,7 @@ fn Root() -> impl IntoView {
     }));
     let library_version = use_library_version();
     spawn_local(async move {
-        let published = load_published_card_images().await;
+        let published = load_published_assets().await;
         let local = load_local_overlay().await;
         if published || local {
             library_version.update(|version| *version += 1);

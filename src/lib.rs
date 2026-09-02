@@ -137,6 +137,8 @@ struct PublishedAssetCatalog {
     face: Vec<PublishedFace>,
     #[serde(default)]
     printing: Vec<PublishedPrinting>,
+    #[serde(default)]
+    insert: Vec<PublishedInsert>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -173,10 +175,53 @@ struct PublishedPrinting {
     back_face_id: Option<String>,
 }
 
-pub fn published_card_image_overrides(
+#[derive(Debug, Deserialize)]
+struct PublishedInsert {
+    id: String,
+    #[serde(default)]
+    external_insert_id: Option<String>,
+    language: String,
+    state: String,
+    front_face_id: String,
+}
+
+#[derive(Debug, Clone, Default, Eq, PartialEq)]
+pub struct PublishedAssetIndex {
+    card_faces: HashMap<CardFacePrintingId, String>,
+    inserts: HashMap<InsertId, String>,
+}
+
+impl PublishedAssetIndex {
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.card_faces.is_empty() && self.inserts.is_empty()
+    }
+
+    #[must_use]
+    pub fn card_face_count(&self) -> usize {
+        self.card_faces.len()
+    }
+
+    #[must_use]
+    pub fn insert_count(&self) -> usize {
+        self.inserts.len()
+    }
+
+    #[must_use]
+    pub fn image_url(&self, image: &CardImage) -> Option<&str> {
+        match image {
+            CardImage::CardFacePrinting(printing) => {
+                self.card_faces.get(printing).map(String::as_str)
+            }
+            CardImage::Insert(insert) => self.inserts.get(insert).map(String::as_str),
+        }
+    }
+}
+
+pub fn published_asset_index(
     catalog_json: &str,
     library: &MultiLibrary,
-) -> anyhow::Result<Vec<LocalImageOverride>> {
+) -> anyhow::Result<PublishedAssetIndex> {
     let catalog: PublishedAssetCatalog = serde_json::from_str(catalog_json)?;
     anyhow::ensure!(catalog.schema == 1, "unsupported card asset catalog schema");
 
@@ -212,7 +257,7 @@ pub fn published_card_image_overrides(
         }
     }
 
-    let mut overrides = BTreeMap::new();
+    let mut card_faces = BTreeMap::new();
     for printing in catalog.printing {
         if printing.publisher != "nsg"
             || printing.art_kind != "official"
@@ -257,7 +302,7 @@ pub fn published_card_image_overrides(
             if !known {
                 continue;
             }
-            if let Some(existing) = overrides.insert(id.clone(), url.clone()) {
+            if let Some(existing) = card_faces.insert(id.clone(), url.clone()) {
                 anyhow::ensure!(
                     existing == *url,
                     "card asset catalog maps printing {printing_id} to conflicting URLs"
@@ -266,15 +311,55 @@ pub fn published_card_image_overrides(
         }
     }
 
-    Ok(overrides
-        .into_iter()
-        .map(|(id, url)| LocalImageOverride {
-            id: id.id,
-            face_or_variant_specifier: id.face_or_variant_specifier,
-            print_group: id.print_group,
-            url,
-        })
-        .collect())
+    let mut inserts = BTreeMap::new();
+    for insert in catalog.insert {
+        if insert.state != "released" {
+            continue;
+        }
+        let Some(print_group) = print_group_for_language(&insert.language) else {
+            continue;
+        };
+        let Some(name) = published_insert_name(&insert) else {
+            continue;
+        };
+        let Some(url) = face_urls.get(&insert.front_face_id) else {
+            continue;
+        };
+        let id = InsertId {
+            name: name.to_owned(),
+            print_group: print_group.to_owned(),
+        };
+        let known = library
+            .libraries
+            .get(print_group)
+            .is_some_and(|library| library.inserts.contains_key(&id));
+        if !known {
+            continue;
+        }
+        if let Some(existing) = inserts.insert(id, url.clone()) {
+            anyhow::ensure!(
+                existing == *url,
+                "card asset catalog maps insert `{name}` to conflicting URLs"
+            );
+        }
+    }
+
+    Ok(PublishedAssetIndex {
+        card_faces: card_faces.into_iter().collect(),
+        inserts: inserts.into_iter().collect(),
+    })
+}
+
+fn published_insert_name(insert: &PublishedInsert) -> Option<&str> {
+    let name = insert
+        .external_insert_id
+        .as_deref()
+        .or_else(|| insert.id.rsplit(':').next())?;
+    Some(match name {
+        "corp_turn_steps" => "turn_structure_corp",
+        "runner_turn_steps" => "turn_structure_runner",
+        name => name,
+    })
 }
 
 fn print_group_for_language(language: &str) -> Option<&'static str> {
@@ -411,15 +496,15 @@ impl FilledCardSlot {
 
     #[must_use]
     pub fn image_url(&self) -> String {
-        match self {
-            FilledCardSlot::Card { printing } => ACTIVE_LIBRARY
-                .read()
-                .expect("library lock")
-                .local_image_url(printing)
-                .map(str::to_string)
-                .unwrap_or_else(|| printing.image_url()),
-            FilledCardSlot::Insert { insert } => insert.image_url(),
-        }
+        let image = match self {
+            FilledCardSlot::Card { printing } => CardImage::CardFacePrinting(printing.clone()),
+            FilledCardSlot::Insert { insert } => CardImage::Insert(insert.clone()),
+        };
+        let library = ACTIVE_LIBRARY.read().expect("library lock");
+        let published = ACTIVE_PUBLISHED_ASSETS
+            .read()
+            .expect("published asset lock");
+        resolve_image_url(&image, &library, &published)
     }
     #[must_use]
     pub fn name(&self) -> String {
@@ -609,6 +694,24 @@ pub const MANIFEST: &str = include_str!("manifest.ron");
 pub static MULTI_LIBRARY: std::sync::LazyLock<MultiLibrary> = std::sync::LazyLock::new(manifest);
 pub static ACTIVE_LIBRARY: std::sync::LazyLock<RwLock<MultiLibrary>> =
     std::sync::LazyLock::new(|| RwLock::new(manifest()));
+pub static ACTIVE_PUBLISHED_ASSETS: std::sync::LazyLock<RwLock<PublishedAssetIndex>> =
+    std::sync::LazyLock::new(|| RwLock::new(PublishedAssetIndex::default()));
+
+fn resolve_image_url(
+    image: &CardImage,
+    library: &MultiLibrary,
+    published: &PublishedAssetIndex,
+) -> String {
+    if let CardImage::CardFacePrinting(printing) = image
+        && let Some(url) = library.local_image_url(printing)
+    {
+        return url.to_owned();
+    }
+    published
+        .image_url(image)
+        .map(str::to_owned)
+        .unwrap_or_else(|| image.image_url())
+}
 
 #[allow(clippy::missing_panics_doc)]
 #[must_use]
@@ -838,40 +941,51 @@ mod tests {
     use super::*;
 
     const CONDUIT_URL: &str = "https://assets.example.test/conduit.webp";
+    const CORP_TURN_STEPS_URL: &str = "https://assets.example.test/corp-turn-steps.webp";
 
-    #[test]
-    fn public_catalog_maps_conduit_to_its_proxy_webp() {
-        let library = manifest();
-        let catalog = format!(
+    fn published_catalog() -> String {
+        format!(
             r#"{{
   "schema": 1,
   "revision": "test",
-  "face": [{{
-    "id": "nsg:system_gateway:30024:conduit:front",
-    "asset": [
-      {{
-        "profile": "proxy-square-v1",
-        "rendition": "full",
-        "format": "png",
-        "catalogs": ["proxy"],
-        "url": "https://assets.example.test/conduit.png"
-      }},
-      {{
+  "face": [
+    {{
+      "id": "nsg:system_gateway:30024:conduit:front",
+      "asset": [
+        {{
+          "profile": "proxy-square-v1",
+          "rendition": "full",
+          "format": "png",
+          "catalogs": ["proxy"],
+          "url": "https://assets.example.test/conduit.png"
+        }},
+        {{
+          "profile": "proxy-square-v1",
+          "rendition": "full",
+          "format": "webp",
+          "catalogs": ["proxy"],
+          "url": "{CONDUIT_URL}"
+        }},
+        {{
+          "profile": "nro-rounded-v1",
+          "rendition": "thumbnail",
+          "format": "webp",
+          "catalogs": ["nro"],
+          "url": "https://assets.example.test/conduit-thumb.webp"
+        }}
+      ]
+    }},
+    {{
+      "id": "nsg:insert:corp_turn_steps:front",
+      "asset": [{{
         "profile": "proxy-square-v1",
         "rendition": "full",
         "format": "webp",
         "catalogs": ["proxy"],
-        "url": "{CONDUIT_URL}"
-      }},
-      {{
-        "profile": "nro-rounded-v1",
-        "rendition": "thumbnail",
-        "format": "webp",
-        "catalogs": ["nro"],
-        "url": "https://assets.example.test/conduit-thumb.webp"
-      }}
-    ]
-  }}],
+        "url": "{CORP_TURN_STEPS_URL}"
+      }}]
+    }}
+  ],
   "printing": [{{
     "id": "nsg:system_gateway:30024:conduit",
     "external_printing_id": "30024",
@@ -881,22 +995,46 @@ mod tests {
     "state": "released",
     "front_face_id": "nsg:system_gateway:30024:conduit:front"
   }}],
-  "insert": []
+  "insert": [{{
+    "id": "nsg:corp_turn_steps",
+    "title": "Corp Turn Steps",
+    "language": "en",
+    "state": "released",
+    "front_face_id": "nsg:insert:corp_turn_steps:front"
+  }}]
 }}"#
-        );
-
-        let overrides =
-            published_card_image_overrides(&catalog, &library).expect("published overrides");
-        assert_eq!(overrides.len(), 1);
-        assert_eq!(overrides[0].id, 30024);
-        assert_eq!(overrides[0].face_or_variant_specifier, None);
-        assert_eq!(overrides[0].print_group, "english");
-        assert_eq!(overrides[0].url, CONDUIT_URL);
+        )
     }
 
     #[test]
-    fn later_image_overlays_replace_earlier_catalog_entries() {
+    fn public_catalog_maps_cards_and_inserts_to_proxy_webps() {
+        let library = manifest();
+        let published =
+            published_asset_index(&published_catalog(), &library).expect("published assets");
+        assert_eq!(published.card_face_count(), 1);
+        assert_eq!(published.insert_count(), 1);
+        assert_eq!(
+            published.image_url(&CardImage::CardFacePrinting(CardFacePrintingId {
+                id: 30024,
+                face_or_variant_specifier: None,
+                print_group: "english".to_string(),
+            })),
+            Some(CONDUIT_URL)
+        );
+        assert_eq!(
+            published.image_url(&CardImage::Insert(InsertId {
+                name: "turn_structure_corp".to_string(),
+                print_group: "english".to_string(),
+            })),
+            Some(CORP_TURN_STEPS_URL)
+        );
+    }
+
+    #[test]
+    fn actual_local_images_take_precedence_over_published_assets() {
         let mut library = manifest();
+        let published =
+            published_asset_index(&published_catalog(), &library).expect("published assets");
         let existing = LocalImageOverride {
             id: 30024,
             face_or_variant_specifier: None,
@@ -921,6 +1059,14 @@ mod tests {
             print_group: "english".to_string(),
         };
         assert_eq!(library.local_image_url(&conduit), Some(local_url));
+        assert_eq!(
+            resolve_image_url(
+                &CardImage::CardFacePrinting(conduit.clone()),
+                &library,
+                &published
+            ),
+            local_url
+        );
         assert_eq!(
             library
                 .local_images
