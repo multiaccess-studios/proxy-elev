@@ -17420,6 +17420,20 @@
             },
             inserts: {
                 (
+                    name: "bad_publicity_fund",
+                    print_group: "english",
+                ): (
+                    title: (
+                        title: "Bad Publicity Fund",
+                        stripped_title: "Bad Publicity Fund",
+                    ),
+                    id: (
+                        name: "bad_publicity_fund",
+                        print_group: "english",
+                    ),
+                    insert_groups: [],
+                ),
+                (
                     name: "corp_basic_actions",
                     print_group: "english",
                 ): (

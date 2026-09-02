@@ -32,6 +32,10 @@ id = "tag_tracking_area"
 title = "Tag Tracking Area"
 
 [[collection.insert]]
+id = "bad_publicity_fund"
+title = "Bad Publicity Fund"
+
+[[collection.insert]]
 id = "turn_structure_runner"
 title = "Turn Structure: Runner"
 insert_groups = ["Turn Structure"]
