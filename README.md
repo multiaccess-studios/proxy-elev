@@ -12,6 +12,21 @@ nix run .#build
 Merges to `main` deploy the generated `publish/` directory to the production
 Object Storage bucket from the `llb-rdev` runner.
 
+## Published card assets
+
+At startup, the browser reads the public card asset catalogue and overlays released official NSG
+`proxy-square-v1` WebPs onto the bundled card library. Cards absent from the catalogue, catalogue
+errors, and unsupported entries retain the legacy image URL automatically. A local runtime overlay
+loads afterwards and takes precedence over both sources.
+
+The default catalogue is:
+
+```text
+https://nro-card-assets-public-fr-par.s3.fr-par.scw.cloud/catalogs/v1/current.json
+```
+
+Set `NRO_PROXY_CARD_ASSET_CATALOG_URL` at build time to use another catalogue.
+
 ## Regenerating Manifest
 
 If you wish to regenerate the manifest, you will need the
