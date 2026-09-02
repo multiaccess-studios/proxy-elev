@@ -24,8 +24,9 @@ use printpdf::{
     PdfSaveOptions, Point, Polygon, PolygonRing, RawImage, WindingOrder, XObjectTransform,
 };
 use proxy_elev::{
-    ACTIVE_LIBRARY, AlternateFaceMetadata, BleedMode, CardFacePrintingId, CardId, CutIndicator,
-    FilledCardSlot, InsertId, Library, MultiLibrary, PrintConfig, PrintFile, PrintSize,
+    ACTIVE_LIBRARY, AlternateFaceMetadata, BleedMode, CARD_ASSET_CATALOG_URL, CardFacePrintingId,
+    CardId, CutIndicator, FilledCardSlot, InsertId, Library, MultiLibrary, PrintConfig, PrintFile,
+    PrintSize, published_card_image_overrides,
 };
 use reactive_stores::{Store, Subfield};
 use regex::Regex;
@@ -47,6 +48,80 @@ fn normalize_request_url(url: &str) -> String {
 fn with_library<R>(f: impl FnOnce(&MultiLibrary) -> R) -> R {
     let lib = ACTIVE_LIBRARY.read().expect("library lock");
     f(&lib)
+}
+
+async fn load_published_card_images() -> bool {
+    let url = normalize_request_url(CARD_ASSET_CATALOG_URL);
+    let Ok(response) = reqwest::get(&url).await else {
+        console_warn("Failed to fetch the public card asset catalog; using legacy images");
+        return false;
+    };
+    if !response.status().is_success() {
+        console_warn("Public card asset catalog was unavailable; using legacy images");
+        return false;
+    }
+    let Ok(text) = response.text().await else {
+        console_warn("Failed to read the public card asset catalog; using legacy images");
+        return false;
+    };
+    let overrides = {
+        let library = ACTIVE_LIBRARY.read().expect("library lock");
+        match published_card_image_overrides(&text, &library) {
+            Ok(overrides) => overrides,
+            Err(error) => {
+                console_warn(&format!(
+                    "Failed to parse the public card asset catalog; using legacy images: {error}"
+                ));
+                return false;
+            }
+        }
+    };
+    if overrides.is_empty() {
+        return false;
+    }
+    let overlay = MultiLibrary {
+        libraries: HashMap::new(),
+        collection_names: HashMap::new(),
+        nrdb_remap: HashMap::new(),
+        local_images: overrides,
+    };
+    ACTIVE_LIBRARY
+        .write()
+        .expect("library lock")
+        .merge_overlay(overlay);
+    true
+}
+
+async fn load_local_overlay() -> bool {
+    let urls = ["/local-assets/manifest.local.ron", "/manifest.local.ron"];
+    let mut overlay_text = None;
+    for url in urls {
+        let url = normalize_request_url(url);
+        let Ok(resp) = reqwest::get(&url).await else {
+            continue;
+        };
+        if !resp.status().is_success() {
+            continue;
+        }
+        let Ok(text) = resp.text().await else {
+            console_warn("Failed to read local overlay");
+            continue;
+        };
+        overlay_text = Some(text);
+        break;
+    }
+    let Some(overlay_text) = overlay_text else {
+        return false;
+    };
+    let Ok(overlay) = ron::de::from_str::<MultiLibrary>(&overlay_text) else {
+        console_warn("Failed to parse local overlay");
+        return false;
+    };
+    ACTIVE_LIBRARY
+        .write()
+        .expect("library lock")
+        .merge_overlay(overlay);
+    true
 }
 
 fn use_print_file() -> (Signal<PrintFile>, WriteSignal<PrintFile>) {
@@ -161,35 +236,11 @@ fn Root() -> impl IntoView {
     }));
     let library_version = use_library_version();
     spawn_local(async move {
-        let urls = ["/local-assets/manifest.local.ron", "/manifest.local.ron"];
-        let mut overlay_text = None;
-        for url in urls {
-            let url = normalize_request_url(url);
-            let Ok(resp) = reqwest::get(&url).await else {
-                continue;
-            };
-            if !resp.status().is_success() {
-                continue;
-            }
-            let Ok(text) = resp.text().await else {
-                console_warn("Failed to read local overlay");
-                continue;
-            };
-            overlay_text = Some(text);
-            break;
+        let published = load_published_card_images().await;
+        let local = load_local_overlay().await;
+        if published || local {
+            library_version.update(|version| *version += 1);
         }
-        let Some(overlay_text) = overlay_text else {
-            return;
-        };
-        let Ok(overlay) = ron::de::from_str::<MultiLibrary>(&overlay_text) else {
-            console_warn("Failed to parse local overlay");
-            return;
-        };
-        {
-            let mut lib = ACTIVE_LIBRARY.write().expect("library lock");
-            lib.merge_overlay(overlay);
-        }
-        library_version.update(|version| *version += 1);
     });
     view! {
         <div class="bg-zinc-900 grid auto-rows-[min-content_1fr_min-content] gap-2 h-screen">

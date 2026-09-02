@@ -1,4 +1,4 @@
-use std::collections::{BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::sync::RwLock;
 
 use serde::{Deserialize, Serialize};
@@ -6,6 +6,11 @@ use serde::{Deserialize, Serialize};
 pub const CARD_IMAGE_URL_ROOT: &str = match option_env!("NRO_PROXY_CARD_IMAGE_URL_ROOT") {
     Some(env) => env,
     None => "https://nro-public.s3.nl-ams.scw.cloud/nro/card-printings/v2/webp",
+};
+
+pub const CARD_ASSET_CATALOG_URL: &str = match option_env!("NRO_PROXY_CARD_ASSET_CATALOG_URL") {
+    Some(env) => env,
+    None => "https://nro-card-assets-public-fr-par.s3.fr-par.scw.cloud/catalogs/v1/current.json",
 };
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]
@@ -90,6 +95,7 @@ impl MultiLibrary {
     pub fn local_image_url(&self, printing: &CardFacePrintingId) -> Option<&str> {
         self.local_images
             .iter()
+            .rev()
             .find(|override_| {
                 override_.id == printing.id
                     && override_.print_group == printing.print_group
@@ -113,7 +119,174 @@ impl MultiLibrary {
         for (from, to) in overlay.nrdb_remap {
             self.nrdb_remap.insert(from, to);
         }
-        self.local_images.extend(overlay.local_images);
+        for image in overlay.local_images {
+            self.local_images.retain(|existing| {
+                existing.id != image.id
+                    || existing.print_group != image.print_group
+                    || existing.face_or_variant_specifier != image.face_or_variant_specifier
+            });
+            self.local_images.push(image);
+        }
+    }
+}
+
+#[derive(Debug, Deserialize)]
+struct PublishedAssetCatalog {
+    schema: u32,
+    #[serde(default)]
+    face: Vec<PublishedFace>,
+    #[serde(default)]
+    printing: Vec<PublishedPrinting>,
+}
+
+#[derive(Debug, Deserialize)]
+struct PublishedFace {
+    id: String,
+    #[serde(default)]
+    asset: Vec<PublishedAsset>,
+}
+
+#[derive(Debug, Deserialize)]
+struct PublishedAsset {
+    profile: String,
+    rendition: String,
+    format: String,
+    #[serde(default)]
+    catalogs: Vec<String>,
+    url: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct PublishedPrinting {
+    #[serde(default)]
+    external_printing_id: Option<String>,
+    #[serde(default)]
+    external_front_face_index: Option<usize>,
+    #[serde(default)]
+    external_back_face_index: Option<usize>,
+    language: String,
+    art_kind: String,
+    publisher: String,
+    state: String,
+    front_face_id: String,
+    #[serde(default)]
+    back_face_id: Option<String>,
+}
+
+pub fn published_card_image_overrides(
+    catalog_json: &str,
+    library: &MultiLibrary,
+) -> anyhow::Result<Vec<LocalImageOverride>> {
+    let catalog: PublishedAssetCatalog = serde_json::from_str(catalog_json)?;
+    anyhow::ensure!(catalog.schema == 1, "unsupported card asset catalog schema");
+
+    let mut face_urls = BTreeMap::new();
+    for face in catalog.face {
+        let urls: BTreeSet<_> = face
+            .asset
+            .into_iter()
+            .filter(|asset| {
+                asset.profile == "proxy-square-v1"
+                    && asset.rendition == "full"
+                    && asset.format == "webp"
+                    && asset.catalogs.iter().any(|catalog| catalog == "proxy")
+            })
+            .map(|asset| asset.url)
+            .collect();
+        anyhow::ensure!(
+            urls.len() <= 1,
+            "published face `{}` has conflicting proxy WebPs",
+            face.id
+        );
+        if let Some(url) = urls.into_iter().next() {
+            anyhow::ensure!(
+                url.starts_with("https://"),
+                "published face `{}` has a non-HTTPS URL",
+                face.id
+            );
+            anyhow::ensure!(
+                face_urls.insert(face.id.clone(), url).is_none(),
+                "card asset catalog repeats face `{}`",
+                face.id
+            );
+        }
+    }
+
+    let mut overrides = BTreeMap::new();
+    for printing in catalog.printing {
+        if printing.publisher != "nsg"
+            || printing.art_kind != "official"
+            || printing.state != "released"
+        {
+            continue;
+        }
+        let Some(external_id) = printing.external_printing_id else {
+            continue;
+        };
+        let printing_id: u32 = external_id.parse().map_err(|_| {
+            anyhow::anyhow!("published NSG printing ID `{external_id}` is not numeric")
+        })?;
+        let Some(print_group) = print_group_for_language(&printing.language) else {
+            continue;
+        };
+        for (face_id, face_or_variant_specifier) in [
+            (
+                Some(printing.front_face_id.as_str()),
+                printing.external_front_face_index,
+            ),
+            (
+                printing.back_face_id.as_deref(),
+                printing.external_back_face_index,
+            ),
+        ] {
+            let Some(face_id) = face_id else {
+                continue;
+            };
+            let Some(url) = face_urls.get(face_id) else {
+                continue;
+            };
+            let id = CardFacePrintingId {
+                id: printing_id,
+                face_or_variant_specifier,
+                print_group: print_group.to_owned(),
+            };
+            let known = library
+                .libraries
+                .get(print_group)
+                .is_some_and(|library| library.faces.contains_key(&id));
+            if !known {
+                continue;
+            }
+            if let Some(existing) = overrides.insert(id.clone(), url.clone()) {
+                anyhow::ensure!(
+                    existing == *url,
+                    "card asset catalog maps printing {printing_id} to conflicting URLs"
+                );
+            }
+        }
+    }
+
+    Ok(overrides
+        .into_iter()
+        .map(|(id, url)| LocalImageOverride {
+            id: id.id,
+            face_or_variant_specifier: id.face_or_variant_specifier,
+            print_group: id.print_group,
+            url,
+        })
+        .collect())
+}
+
+fn print_group_for_language(language: &str) -> Option<&'static str> {
+    match language {
+        "en" => Some("english"),
+        "es" => Some("spanish"),
+        "fr" => Some("french"),
+        "de" => Some("german"),
+        "it" => Some("italian"),
+        "ja" => Some("japanese"),
+        "ko" => Some("korean"),
+        _ => None,
     }
 }
 
@@ -657,5 +830,104 @@ impl PrintConfig {
             }
             CutIndicator::None => vec![],
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const CONDUIT_URL: &str = "https://assets.example.test/conduit.webp";
+
+    #[test]
+    fn public_catalog_maps_conduit_to_its_proxy_webp() {
+        let library = manifest();
+        let catalog = format!(
+            r#"{{
+  "schema": 1,
+  "revision": "test",
+  "face": [{{
+    "id": "nsg:system_gateway:30024:conduit:front",
+    "asset": [
+      {{
+        "profile": "proxy-square-v1",
+        "rendition": "full",
+        "format": "png",
+        "catalogs": ["proxy"],
+        "url": "https://assets.example.test/conduit.png"
+      }},
+      {{
+        "profile": "proxy-square-v1",
+        "rendition": "full",
+        "format": "webp",
+        "catalogs": ["proxy"],
+        "url": "{CONDUIT_URL}"
+      }},
+      {{
+        "profile": "nro-rounded-v1",
+        "rendition": "thumbnail",
+        "format": "webp",
+        "catalogs": ["nro"],
+        "url": "https://assets.example.test/conduit-thumb.webp"
+      }}
+    ]
+  }}],
+  "printing": [{{
+    "id": "nsg:system_gateway:30024:conduit",
+    "external_printing_id": "30024",
+    "language": "en",
+    "art_kind": "official",
+    "publisher": "nsg",
+    "state": "released",
+    "front_face_id": "nsg:system_gateway:30024:conduit:front"
+  }}],
+  "insert": []
+}}"#
+        );
+
+        let overrides =
+            published_card_image_overrides(&catalog, &library).expect("published overrides");
+        assert_eq!(overrides.len(), 1);
+        assert_eq!(overrides[0].id, 30024);
+        assert_eq!(overrides[0].face_or_variant_specifier, None);
+        assert_eq!(overrides[0].print_group, "english");
+        assert_eq!(overrides[0].url, CONDUIT_URL);
+    }
+
+    #[test]
+    fn later_image_overlays_replace_earlier_catalog_entries() {
+        let mut library = manifest();
+        let existing = LocalImageOverride {
+            id: 30024,
+            face_or_variant_specifier: None,
+            print_group: "english".to_string(),
+            url: CONDUIT_URL.to_string(),
+        };
+        library.local_images.push(existing.clone());
+        let local_url = "/local-assets/conduit.webp";
+        library.merge_overlay(MultiLibrary {
+            libraries: HashMap::new(),
+            collection_names: HashMap::new(),
+            nrdb_remap: HashMap::new(),
+            local_images: vec![LocalImageOverride {
+                url: local_url.to_string(),
+                ..existing
+            }],
+        });
+
+        let conduit = CardFacePrintingId {
+            id: 30024,
+            face_or_variant_specifier: None,
+            print_group: "english".to_string(),
+        };
+        assert_eq!(library.local_image_url(&conduit), Some(local_url));
+        assert_eq!(
+            library
+                .local_images
+                .iter()
+                .filter(|image| image.id == 30024 && image.print_group == "english")
+                .count(),
+            1
+        );
     }
 }
